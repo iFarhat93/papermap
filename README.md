@@ -43,6 +43,22 @@ Optional flags: `--tts edge` adds real voice audio, `--style duo` switches to a 
 
 Other providers (vLLM, llama.cpp, LM Studio, OpenAI-compatible and Anthropic APIs), voices, configuration and debugging are covered in [docs/GUIDE.md](docs/GUIDE.md). How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Use a local model
+
+The simplest way to run the model on your own machine is [Ollama](https://ollama.com):
+
+1. Install Ollama from [ollama.com/download](https://ollama.com/download) and start it. It listens on `localhost:11434`, where PaperMap looks by default.
+2. Download a model:
+   ```bash
+   ollama pull qwen2.5:7b
+   ```
+3. Generate with it:
+   ```bash
+   papermap paper.pdf --profile profile.md --provider ollama --model qwen2.5:7b
+   ```
+
+`papermap serve` then answers your questions with the same model. A 7B model is enough to try PaperMap. A larger one writes better narration and diagrams, if your machine can run it.
+
 ## License
 
 MIT
