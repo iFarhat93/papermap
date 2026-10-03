@@ -15,7 +15,7 @@ paper2podcast paper.pdf -p profile.md --provider mock      # offline and determi
 
 ## The profile
 
-`profile.md` is free-form Markdown. Say who the listener is, what they already know, what is new to them, what they care about, how deep to go, the tone that works for them and the narration language. See the two examples in [`examples/`](../examples/): a research-minded ML engineer and a software engineer moving into ML. The `profile` stage turns it into a structured audience model, and every explanation is written against it. Concepts the listener already knows are not re-explained. Concepts they are missing get a short definition. Analogies come from fields the listener knows.
+`profile.md` is free-form Markdown. Say who the listener is, what they already know, what is new to them, what they care about, how deep to go, the tone that works for them and the narration language. See the example in [`examples/profile.example.md`](../examples/profile.example.md). The `profile` stage turns it into a structured audience model, and every explanation is written against it. Concepts the listener already knows are not re-explained. Concepts they are missing get a short definition. Analogies come from fields the listener knows.
 
 ## Models
 
