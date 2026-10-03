@@ -73,6 +73,17 @@ pip install -e ".[all]"        # Python 3.11 or newer
 4. **Ask.** The Ask tab answers questions about the section, diagram or graph node you are on, and the Ask mode takes any question at any time. Answers carry `[s5]`-style chips that jump to the cited section.
 5. **Take the quiz.** It unlocks once you have read every section. Each question you miss links to the part of the narration and the passage in the paper that answer it.
 
+**What a full page costs.** The numbers below are for the 18-page knowledge-insulation paper (70 model calls, 188k input and 44k output tokens). The local rows are measured; the cloud rows are rough estimates at list prices (October 2026), before prompt-caching discounts and without thinking tokens, so treat them as ±50%.
+
+| Where it runs | Model | Wall time | Cost |
+|---|---|---|---|
+| RTX 5070 Ti (16 GB), Ollama | qwen3.8:27b Q4, partly on CPU, one call at a time | 51 min measured (43 min model, 7 min Edge voices) | free |
+| RTX 5070 Ti (16 GB), Ollama | qwen2.5:7b, 4 calls in parallel | 4 min measured (15-page paper, browser voice) | free |
+| Anthropic API | claude-sonnet-5-5 / claude-opus-5-5 | 5 to 10 min (estimate) | about $0.8 / $1.6 |
+| OpenAI API | gpt-5 / gpt-6.1-sol | 5 to 10 min (estimate) | about $0.7 / $0.8 |
+
+Edge voices are free and add about 7 minutes whichever model writes the text; the browser voice adds nothing.
+
 `--style duo` turns the narration into a host-and-expert conversation, `--tts` adds real voices (Edge, or any OpenAI-compatible speech server), and every stage writes its output to `debug/<stage>.json`. Configuration, providers and debugging are in [GUIDE.md](../GUIDE.md); the internals are in [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ## Limits and what's next
