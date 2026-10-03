@@ -34,6 +34,34 @@ class TTSError(RuntimeError):
     pass
 
 
+_GREEK = ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau "
+          "upsilon phi chi psi omega").split()
+_GREEK_CHARS = dict(zip("αβγδεζηθικλμνξοπρστυφχψω", _GREEK))
+
+
+def speakable(text: str) -> str:
+    """Make narration safe for a speech engine: LaTeX and symbols become words
+    ("$\\pi_0$" -> "pi 0", "x^2" -> "x squared")."""
+    import re
+
+    def math(m: re.Match) -> str:
+        t = m.group(1)
+        t = re.sub(r"\\(mathrm|text|mathbf|mathcal|operatorname|bm|boldsymbol)\{([^}]*)\}", r"\2", t)
+        t = re.sub(r"\^\{?2\}?", " squared", t)
+        t = re.sub(r"\^\{?T\}?", " transpose", t)
+        t = re.sub(r"\^\{?-1\}?", " inverse", t)
+        t = re.sub(r"\\(" + "|".join(_GREEK) + r")(?![A-Za-z])", r" \1 ", t, flags=re.I)
+        t = re.sub(r"[_^]\{([^}]*)\}", r" \1", t)
+        t = re.sub(r"[_^]", " ", t)
+        t = re.sub(r"\\[A-Za-z]+", " ", t)
+        t = re.sub(r"[{}\\]", " ", t)
+        return " " + t + " "
+
+    text = re.sub(r"\$\$?(.+?)\$\$?", math, text)
+    text = "".join(f" {_GREEK_CHARS[c]} " if c in _GREEK_CHARS else c for c in text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 class TTSProvider(ABC):
     name = "base"
 

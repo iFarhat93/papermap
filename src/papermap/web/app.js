@@ -198,6 +198,8 @@
     if (p.get('mode') === 'qa') state.mode = 'qa';
     if (p.has('node') && NODE_BY_ID[p.get('node')]) state.selectedNode = p.get('node');
     if (p.get('unlock') === '1') state.forceUnlock = true;
+    if (['narration', 'paper', 'ask'].includes(p.get('tab'))) state.sideTab = p.get('tab');
+    if (p.get('stage')) state.initialStage = p.get('stage');
     if (p.get('theme') === 'dark' || p.get('theme') === 'light') applyTheme(p.get('theme'));
   }
 
@@ -263,7 +265,7 @@
       h('div', { class: 'rail-progress' }, ui.progressText, h('div', { class: 'bar-track' }, ui.progressFill)),
       h('div', { class: 'rail-about' },
         DATA.paper.one_line ? h('p', {}, h('strong', {}, 'In one line. '), DATA.paper.one_line) : null,
-        h('p', {}, h('strong', {}, 'Explained for '), `${p.name}`, p.summary ? ` — ${p.summary}` : '')));
+        h('p', {}, h('strong', {}, 'Explained for '), p.name ? `${p.name}${p.summary ? ` — ${p.summary}` : ''}` : (p.summary || 'a curious reader').replace(/^(A|An|The)\b/, (m) => m.toLowerCase()))));
   }
 
   function updateRail() {
@@ -287,9 +289,10 @@
     ui.speaker = h('span', { class: 'speaker' });
     ui.subtitle = h('p', { class: 'subtitle' });
     ui.quote = h('blockquote', { class: 'quote' });
+    ui.modeChips = h('div', { class: 'seg mode-chips', role: 'group', 'aria-label': 'What the stage shows' });
     ui.readView = h('div', { class: 'stage-wrap' },
       h('div', { class: 'stage-head' }, h('div', { class: 'titles' }, ui.kicker, ui.stageTitle), h('div', { class: 'stage-tools' }, ui.askDiagramBtn, ui.toGraphBtn)),
-      h('div', { class: 'stage' }, ui.stageBody, ui.stageCaption),
+      (ui.stage = h('div', { class: 'stage' }, ui.modeChips, ui.stageBody, ui.stageCaption)),
       h('div', { class: 'caption', 'aria-live': 'polite' }, h('div', { class: 'subtitle-row' }, ui.speaker, ui.subtitle), ui.quote));
     ui.center.append(ui.readView);
   }
@@ -301,41 +304,89 @@
     const meta = SECTIONS[state.sIdx];
     ui.kicker.textContent = `${state.sIdx === 0 ? 'Overview' : `${secNum(state.sIdx)} · ${ROLE_LABEL[meta.role] || 'Section'}`} · ${VIEW_LABEL[state.readView]}`;
     ui.stageTitle.textContent = sv.title;
+    const figs = meta.figures || [];
+    state.stageMode = sv.diagram ? 'diagram' : (figs[0] ? figs[0].id : 'diagram');
+    if (state.initialStage && (state.initialStage === 'diagram' || figs.some((f) => f.id === state.initialStage))) {
+      state.stageMode = state.initialStage;
+    }
+    state.initialStage = null;
+    renderStageModes(sv, figs);
+    renderStage(sv);
+    const hasNodes = NODES.some((n) => (n.sections || []).includes(meta.id));
+    ui.toGraphBtn.style.display = hasNodes ? '' : 'none';
+    renderTranscript();
+    renderTimeline();
+    updateRail();
+  }
+
+  function currentFigure() {
+    return (SECTIONS[state.sIdx].figures || []).find((f) => f.id === state.stageMode) || null;
+  }
+
+  function renderStageModes(sv, figs) {
+    const modes = [];
+    if (sv.diagram) modes.push({ id: 'diagram', label: 'Diagram', title: 'The explanation diagram' });
+    figs.forEach((f) => modes.push({ id: f.id, label: `Figure ${f.number}`, title: `The paper's Figure ${f.number}` }));
+    ui.modeChips.replaceChildren(...(modes.length > 1 ? modes.map((m) => h('button', {
+      'aria-pressed': state.stageMode === m.id ? 'true' : 'false', title: m.title,
+      onclick: () => { state.stageMode = m.id; renderStageModes(sv, figs); renderStage(sv); },
+    }, m.label)) : []));
+    ui.modeChips.style.display = modes.length > 1 ? '' : 'none';
+    ui.stage.classList.toggle('has-modes', modes.length > 1);
+  }
+
+  function renderStage(sv) {
     ui.stageBody.replaceChildren();
     ui.stageCaption.replaceChildren();
-    ui.readView.classList.toggle('no-diagram', !sv.diagram);
     hidePopover();
-    if (sv.diagram) {
+    const fig = currentFigure();
+    ui.readView.classList.toggle('no-diagram', !fig && !sv.diagram);
+    if (fig) {
+      diagramCtl = renderPaperFigure(fig, ui.stageBody);
+      ui.stageCaption.append(h('span', { class: 'dtitle' }, `Figure ${fig.number}`), h('span', {}, `From the paper${fig.page ? ` · p. ${fig.page}` : ''}`));
+    } else if (sv.diagram) {
       diagramCtl = renderDiagram(sv.diagram, ui.stageBody);
       ui.stageCaption.append(h('span', { class: 'dtitle' }, sv.diagram.title), sv.diagram.caption ? h('span', {}, sv.diagram.caption) : null);
     } else {
       diagramCtl = renderIdea(sv, ui.stageBody);
     }
-    const hasNodes = NODES.some((n) => (n.sections || []).includes(meta.id));
-    ui.toGraphBtn.style.display = hasNodes ? '' : 'none';
-    ui.askDiagramBtn.lastChild.textContent = sv.diagram ? 'Ask about this diagram' : 'Ask about this section';
-    renderTranscript();
-    renderTimeline();
-    updateRail();
+    ui.askDiagramBtn.lastChild.textContent = fig ? 'Ask about this figure' : sv.diagram ? 'Ask about this diagram' : 'Ask about this section';
+    const beat = sectionView().beats[state.bIdx];
+    if (diagramCtl && beat) diagramCtl.focus(beat.focus || [], beat);
+  }
+
+  function renderPaperFigure(fig, host) {
+    const images = fig.images.map((src, i) => h('div', { class: 'pf-img' },
+      h('img', { src, alt: `Figure ${fig.number}${fig.sub_captions[i] ? ` (${fig.sub_captions[i]})` : ''}`, loading: 'lazy', onclick: () => openImageViewer(src, `Figure ${fig.number}. ${fig.caption}`) }),
+      fig.sub_captions[i] ? h('div', { class: 'pf-sub' }, `(${String.fromCharCode(97 + i)}) ${fig.sub_captions[i]}`) : null));
+    const cap = h('figcaption', {});
+    setRich(cap, `Figure ${fig.number}. ${fig.caption}`);
+    host.append(h('figure', { class: 'paper-figure diagram-enter' }, h('div', { class: 'pf-images' }, images), cap));
+    return { focus() {} };
   }
 
   function renderBeat(animate = true) {
     const sv = sectionView();
     const beat = currentBeat();
     const meta = SECTIONS[state.sIdx];
-    ui.subtitle.textContent = beat.subtitle || '';
+    setRich(ui.subtitle, beat.subtitle || '');
     if (animate) { ui.subtitle.classList.remove('swap'); void ui.subtitle.offsetWidth; ui.subtitle.classList.add('swap'); }
     const duo = beat.speaker === 'host' || beat.speaker === 'expert';
     ui.speaker.style.display = duo ? '' : 'none';
     ui.speaker.className = `speaker ${beat.speaker}`;
     ui.speaker.textContent = beat.speaker === 'host' ? 'Host' : 'Expert';
     if (beat.quote) {
-      ui.quote.replaceChildren(document.createTextNode(`“${beat.quote}”`), h('cite', {}, `From the paper · ${meta.title}${pagesLabel(meta.pages) ? ` · ${pagesLabel(meta.pages)}` : ''}`));
+      const qtext = h('span', {});
+      setRich(qtext, `“${beat.quote}”`);
+      const where = beat.source && beat.source.rects.length ? `p. ${beat.source.page}` : pagesLabel(meta.pages);
+      const viewBtn = PAGES.length && beat.source ? h('button', { class: 'linkbtn', onclick: () => openPaperForBeat(true) }, 'View in paper ↗') : null;
+      ui.quote.replaceChildren(qtext, h('cite', {}, `From the paper · ${meta.title}${where ? ` · ${where}` : ''}`, viewBtn ? ' · ' : '', viewBtn));
       ui.quote.style.display = '';
     } else {
       ui.quote.style.display = 'none';
     }
     if (diagramCtl) diagramCtl.focus(beat.focus || [], beat);
+    if (state.sideTab === 'paper' && paperView.follow) syncPaperToBeat(false);
     ui.tbeatEls?.forEach((el, i) => el.classList.toggle('current', i === state.bIdx));
     const cur = ui.tbeatEls?.[state.bIdx];
     if (cur && state.sideTab === 'narration') cur.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -351,7 +402,7 @@
     host.append(h('div', { class: 'idea diagram-enter' }, text, dots));
     return {
       focus(_, beat) {
-        text.textContent = beat.subtitle || sv.title;
+        setRich(text, beat.subtitle || sv.title);
         text.classList.remove('swap'); void text.offsetWidth; text.classList.add('swap');
         [...dots.children].forEach((d, i) => d.classList.toggle('on', i === state.bIdx));
       },
@@ -960,6 +1011,145 @@
   }
   document.addEventListener('click', (ev) => { if (popover && !popover.contains(ev.target)) hidePopover(); });
 
+  // ------------------------------------------------------- rich text + speech
+  function setRich(el, text) {
+    const t = String(text || '');
+    if (!t.includes('$')) { el.textContent = t; return; }
+    el.replaceChildren();
+    for (const part of t.split(/(\$[^$]+\$)/g)) {
+      if (/^\$[^$]+\$$/.test(part)) {
+        const span = h('span', { class: 'imath' });
+        renderMath(span, part.slice(1, -1), false);
+        el.append(span);
+      } else if (part) el.append(document.createTextNode(part));
+    }
+    if (!window.katex) ensureKatex().then((k) => { if (k) setRich(el, t); });
+  }
+  function richSpan(text) { const span = h('span', {}); setRich(span, text); return span; }
+
+  const GREEK = 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega'.split(' ');
+  const GREEK_CHARS = 'αβγδεζηθικλμνξοπρστυφχψω';
+  function speakable(text) {
+    const math = (m) => ` ${m
+      .replace(/\\(mathrm|text|mathbf|mathcal|operatorname|bm|boldsymbol)\{([^}]*)\}/g, '$2')
+      .replace(/\^\{?2\}?/g, ' squared').replace(/\^\{?T\}?/g, ' transpose')
+      .replace(new RegExp(`\\\\(${GREEK.join('|')})(?![A-Za-z])`, 'gi'), ' $1 ')
+      .replace(/[_^]\{([^}]*)\}/g, ' $1').replace(/[_^]/g, ' ')
+      .replace(/\\[A-Za-z]+/g, ' ').replace(/[{}\\]/g, ' ')} `;
+    const t = String(text).replace(/\$\$?([^$]+)\$\$?/g, (_, m) => math(m));
+    return t.replace(/[α-ω]/g, (c) => ` ${GREEK[GREEK_CHARS.indexOf(c)] || c} `).replace(/\s+/g, ' ').trim();
+  }
+
+  // ------------------------------------------------------------ paper viewer
+  const PAGES = DATA.paper.pages || [];
+  const paperView = { page: 1, rects: [], follow: true, note: '', zoom: false };
+
+  function paintPage(view, pageNo, rects) {
+    const p = PAGES[pageNo - 1];
+    if (!p) return;
+    const img = view.querySelector('img');
+    if (img.getAttribute('src') !== p.src) img.src = p.src;
+    view.style.aspectRatio = `${p.width} / ${p.height}`;
+    const layer = view.querySelector('.page-hl-layer');
+    layer.replaceChildren(...(rects || []).map(([x0, y0, x1, y1]) => h('div', {
+      class: 'hl', style: `left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%`,
+    })));
+  }
+
+  function buildPaperPane() {
+    const view = h('div', { class: 'page-view', title: 'Open large', onclick: () => openPageViewer() }, h('img', { alt: 'Paper page' }), h('div', { class: 'page-hl-layer' }));
+    const scroller = h('div', { class: 'page-scroller' }, view);
+    const zoomBtn = h('button', { class: 'chip-btn', title: 'Zoom', onclick: () => { paperView.zoom = !paperView.zoom; renderPaperPane(true); } }, 'Zoom');
+    const label = h('span', { class: 'page-label' });
+    const note = h('p', { class: 'side-note paper-note' });
+    const back = h('button', { class: 'linklike', onclick: () => { paperView.follow = true; syncPaperToBeat(true); } }, 'Back to the current beat');
+    const nav = (d) => () => { paperView.follow = false; paperView.page = clamp(paperView.page + d, 1, PAGES.length); paperView.rects = []; paperView.note = ''; renderPaperPane(); };
+    const root = h('div', { class: 'paper-pane' },
+      h('div', { class: 'paper-nav' },
+        h('button', { class: 'chip-btn', 'aria-label': 'Previous page', onclick: nav(-1) }, '‹'),
+        label,
+        h('button', { class: 'chip-btn', 'aria-label': 'Next page', onclick: nav(1) }, '›'),
+        zoomBtn,
+        h('button', { class: 'chip-btn', onclick: () => openPageViewer() }, icon('fit'), 'Large')),
+      scroller, note, back);
+    return { root, view, scroller, zoomBtn, label, note, back };
+  }
+
+  function renderPaperPane(scroll = true) {
+    const pane = ui.paperPane;
+    if (!pane) return;
+    paintPage(pane.view, paperView.page, paperView.rects);
+    pane.view.classList.toggle('zoomed', !!paperView.zoom);
+    pane.zoomBtn.textContent = paperView.zoom ? 'Fit' : 'Zoom';
+    pane.label.textContent = `Page ${paperView.page} of ${PAGES.length}`;
+    pane.note.textContent = paperView.note;
+    pane.back.style.display = paperView.follow ? 'none' : '';
+    if (scroll) requestAnimationFrame(() => scrollToHighlight(pane));
+  }
+
+  function scrollToHighlight(pane) {
+    const sc = pane.scroller;
+    const r = paperView.rects && paperView.rects[0];
+    if (!r) { sc.scrollTop = 0; sc.scrollLeft = 0; return; }
+    const vw = pane.view.clientWidth;
+    const vh = pane.view.clientHeight;
+    const ys = paperView.rects.map((b) => b[1]);
+    const ye = paperView.rects.map((b) => b[3]);
+    const midY = ((Math.min(...ys) + Math.max(...ye)) / 2) * vh;
+    const left = Math.min(...paperView.rects.map((b) => b[0])) * vw; // start of the quoted lines
+    sc.scrollTo({ top: Math.max(0, midY - sc.clientHeight / 2), left: Math.max(0, left - 24) });
+  }
+
+  function syncPaperToBeat(flash) {
+    const src = currentBeat().source;
+    if (!src || !PAGES.length) return;
+    paperView.page = clamp(src.page, 1, PAGES.length);
+    paperView.rects = src.rects || [];
+    paperView.zoom = paperView.rects.length > 0; // zoom in on quoted passages, show whole pages otherwise
+    paperView.note = paperView.rects.length ? 'Highlighted: the passage quoted in this beat.' : 'The page where this section starts.';
+    renderPaperPane();
+    if (flash) {
+      const layer = ui.paperPane.view.querySelector('.page-hl-layer');
+      layer.classList.remove('flash'); void layer.offsetWidth; layer.classList.add('flash');
+
+    }
+  }
+
+  function openPaperForBeat(flash) {
+    paperView.follow = true;
+    selectTab('paper');
+    ui.side.classList.add('open');
+    syncPaperToBeat(flash);
+  }
+
+  function openPageViewer() {
+    if (!PAGES.length) return;
+    let page = paperView.page;
+    const view = h('div', { class: 'page-view large' }, h('img', { alt: 'Paper page' }), h('div', { class: 'page-hl-layer' }));
+    const label = h('span', { class: 'page-label' });
+    const paint = () => { paintPage(view, page, page === paperView.page ? paperView.rects : []); label.textContent = `Page ${page} of ${PAGES.length}`; };
+    let close;
+    const dlg = h('div', { class: 'dialog page-dialog' },
+      h('div', { class: 'paper-nav' },
+        h('button', { class: 'chip-btn', 'aria-label': 'Previous page', onclick: () => { page = clamp(page - 1, 1, PAGES.length); paint(); } }, '‹'),
+        label,
+        h('button', { class: 'chip-btn', 'aria-label': 'Next page', onclick: () => { page = clamp(page + 1, 1, PAGES.length); paint(); } }, '›'),
+        h('span', { style: 'flex:1' }),
+        h('button', { class: 'btn ghost', onclick: () => close() }, 'Close')),
+      h('div', { class: 'page-scroll' }, view));
+    close = showOverlay(dlg);
+    paint();
+  }
+
+  function openImageViewer(src, caption) {
+    let close;
+    const cap = h('p', { class: 'side-note' });
+    setRich(cap, caption);
+    const dlg = h('div', { class: 'dialog image-dialog' }, h('img', { src, alt: caption }), cap,
+      h('div', { class: 'row' }, h('button', { class: 'btn ghost', onclick: () => close() }, 'Close')));
+    close = showOverlay(dlg);
+  }
+
   // ------------------------------------------------------------ narration
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1003,8 +1193,8 @@
     },
     speak(beat, token, done) {
       this.mode = 'speech';
-      const sentences = splitSentences(beat.narration);
-      const total = beat.narration.length || 1;
+      const sentences = splitSentences(speakable(beat.narration));
+      const total = speakable(beat.narration).length || 1;
       let i = 0;
       let before = 0;
       const next = () => {
@@ -1254,9 +1444,12 @@
   function buildSide() {
     ui.tabBtns = {
       narration: h('button', { class: 'tab', role: 'tab', onclick: () => selectTab('narration') }, 'Narration'),
+      paper: PAGES.length ? h('button', { class: 'tab', role: 'tab', onclick: () => { paperView.follow = true; selectTab('paper'); } }, 'Paper') : null,
       ask: h('button', { class: 'tab', role: 'tab', onclick: () => selectTab('ask') }, 'Ask'),
     };
-    ui.tabs = h('div', { class: 'tabs', role: 'tablist' }, ui.tabBtns.narration, ui.tabBtns.ask);
+    if (!ui.tabBtns.paper) delete ui.tabBtns.paper;
+    ui.tabs = h('div', { class: 'tabs', role: 'tablist' }, Object.values(ui.tabBtns));
+    ui.paperPane = buildPaperPane();
     ui.sideBody = h('div', { class: 'side-body' });
     ui.transcript = h('div', {});
     ui.askPane = buildAskPane();
@@ -1268,14 +1461,15 @@
   function selectTab(tab) {
     state.sideTab = tab;
     Object.entries(ui.tabBtns).forEach(([k, b]) => b.setAttribute('aria-selected', k === tab ? 'true' : 'false'));
-    ui.sideBody.replaceChildren(tab === 'ask' ? ui.askPane.root : ui.transcript);
+    ui.sideBody.replaceChildren(tab === 'ask' ? ui.askPane.root : tab === 'paper' ? ui.paperPane.root : ui.transcript);
     if (tab === 'ask') ui.askPane.refresh();
+    if (tab === 'paper') { if (paperView.follow) syncPaperToBeat(false); else renderPaperPane(); }
   }
 
   function renderTranscript() {
     const sv = sectionView();
     ui.tbeatEls = sv.beats.map((b, i) => h('button', { class: `tbeat${i === state.bIdx ? ' current' : ''}`, onclick: () => goTo(state.sIdx, i) },
-      b.speaker === 'host' || b.speaker === 'expert' ? h('span', { class: 'who' }, b.speaker) : null, b.narration));
+      b.speaker === 'host' || b.speaker === 'expert' ? h('span', { class: 'who' }, b.speaker) : null, richSpan(b.narration)));
     ui.transcript.replaceChildren(
       h('h2', {}, `${VIEW_LABEL[state.readView]} narration`),
       h('div', { class: 'tbeats' }, ui.tbeatEls),
@@ -1285,6 +1479,8 @@
   // ---------------------------------------------------------------- Q&A
   function readContext(withDiagram) {
     const sv = sectionView();
+    const fig = withDiagram ? currentFigure() : null;
+    if (fig) return { view: state.readView, section_id: sv.section_id, label: `Figure ${fig.number}`, figure: `Figure ${fig.number}: ${fig.caption}` };
     const ctx = { view: state.readView, section_id: sv.section_id, label: sv.diagram && withDiagram ? `diagram “${sv.diagram.title}”` : `section “${sv.title}”` };
     if (withDiagram && sv.diagram) ctx.diagram_id = sv.diagram.id;
     return ctx;
@@ -1363,7 +1559,7 @@
       const r = await fetch('api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, context: { view: ctx.view, section_id: ctx.section_id, diagram_id: ctx.diagram_id, node_id: ctx.node_id }, history: history.slice(0, -1).slice(-6) }),
+        body: JSON.stringify({ question, context: { view: ctx.view, section_id: ctx.section_id, diagram_id: ctx.diagram_id, node_id: ctx.node_id, figure: ctx.figure }, history: history.slice(0, -1).slice(-6) }),
       });
       const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
       if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);

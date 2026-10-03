@@ -75,7 +75,25 @@ class RawSection(Model):
 class Figure(Model):
     id: str
     caption: str
-    page: int
+    page: int = 0
+    number: int = 0
+    files: list[str] = Field(default_factory=list)  # rendered PNGs, relative to the cache root
+    raw_section_id: str | None = None
+    sub_captions: list[str] = Field(default_factory=list)
+
+
+class Table(Model):
+    id: str
+    number: int = 0
+    caption: str = ""
+    columns: list[str] = Field(default_factory=list)
+    rows: list[list[str]] = Field(default_factory=list)
+    page: int | None = None
+    raw_section_id: str | None = None
+
+    def as_text(self) -> str:
+        lines = [" | ".join(self.columns)] + [" | ".join(r) for r in self.rows]
+        return f"Table {self.number}: {self.caption}\n" + "\n".join(lines)
 
 
 class ParsedPaper(Model):
@@ -87,6 +105,10 @@ class ParsedPaper(Model):
     sections: list[RawSection]
     references: list[str] = Field(default_factory=list)
     figures: list[Figure] = Field(default_factory=list)
+    tables: list[Table] = Field(default_factory=list)
+    pdf_path: str = ""  # local PDF used for page images and source highlighting
+    source_kind: str = "pdf"  # "pdf" | "latex"
+    arxiv_id: str = ""
 
     @property
     def full_text(self) -> str:
@@ -217,6 +239,13 @@ class AudienceProfile(Model):
 # ------------------------------------------------------------------- explain
 
 
+class SourceRef(Model):
+    """Where a beat comes from in the PDF: a page and (for quotes) highlight boxes."""
+
+    page: int
+    rects: list[list[float]] = Field(default_factory=list)  # [x0, y0, x1, y1], fractions of the page
+
+
 class Beat(Model):
     """One narrated step: a few spoken sentences plus what is on screen."""
 
@@ -228,6 +257,7 @@ class Beat(Model):
     focus: list[str] = Field(default_factory=list)  # diagram element ids to highlight
     refs: list[str] = Field(default_factory=list)  # section ids this beat draws on
     audio: str | None = None  # relative path, filled by the narrate stage
+    source: SourceRef | None = None  # filled by the render stage
 
 
 class DiagramBrief(Model):
@@ -257,9 +287,19 @@ class View(Model):
         return next((s for s in self.sections if s.section_id == section_id), None)
 
 
+class ReviewIssue(Model):
+    view: str
+    section_id: str
+    beat: str
+    problem: str
+    fix: str = ""
+    applied: bool = False
+
+
 class Explanations(Model):
     views: dict[str, View]
     suggested_questions: list[str] = Field(default_factory=list)
+    review_issues: list[ReviewIssue] = Field(default_factory=list)
 
 
 # ------------------------------------------------------------------ diagrams
@@ -493,12 +533,28 @@ class Narration(Model):
 # ---------------------------------------------------------------- experience
 
 
+class FigureRef(Model):
+    id: str
+    number: int = 0
+    caption: str = ""
+    images: list[str] = Field(default_factory=list)  # relative paths in the output folder
+    sub_captions: list[str] = Field(default_factory=list)
+    page: int | None = None
+
+
 class SectionMeta(Model):
     id: str
     title: str
     role: str
     pages: list[int] = Field(default_factory=list)
     summary: str = ""
+    figures: list[FigureRef] = Field(default_factory=list)
+
+
+class PageImage(Model):
+    src: str
+    width: float
+    height: float
 
 
 class PaperMeta(Model):
@@ -511,6 +567,9 @@ class PaperMeta(Model):
     problem: str = ""
     contribution: str = ""
     key_result: str = ""
+    source_kind: str = "pdf"
+    arxiv_id: str = ""
+    pages: list[PageImage] = Field(default_factory=list)  # rendered PDF pages (for the source viewer)
 
 
 class QAInfo(Model):

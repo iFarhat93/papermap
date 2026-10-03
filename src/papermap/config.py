@@ -75,6 +75,12 @@ class PipelineSettings(Section):
     deep_beats: tuple[int, int] = (3, 6)
     max_graph_nodes: int = 36
     include_appendix: bool = False
+    # Use the arXiv LaTeX source when the paper is on arXiv (exact sections, equations, tables, figures).
+    use_latex: bool = True
+    # Extract the paper's own figures and show them next to the generated diagrams.
+    paper_figures: bool = True
+    # Second pass that checks the narration against the paper and fixes errors before diagrams are built.
+    review: bool = True
 
 
 class Config(Section):
@@ -144,7 +150,7 @@ EXAMPLE_CONFIG = """\
 provider = "anthropic"
 model = "claude-opus-5-5"
 effort = "medium"          # low | medium | high | xhigh | max
-fallbacks = true           # server-side refusal fallback (Claude API only)
+fallbacks = true           # server-side refusal fallback (Anthropic API only)
 
 # Local with Ollama (native API, no key):
 # provider = "ollama"

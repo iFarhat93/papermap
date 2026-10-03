@@ -87,7 +87,7 @@ Verified quotes from the paper (attach one to a beat by its number):
 Previous section: {prev}. Next section: {next}.
 
 WRITE {lo}-{hi} BEATS. A beat is one step of the explanation: what is said while one idea is on screen.
-- "narration": 1-3 spoken sentences, max 55 words. Natural spoken language: no markdown, no citations, no "in this section". Explain the idea; don't announce it. Define a term only if this listener probably doesn't know it. Use an analogy from the listener's world only where it truly clarifies.
+- "narration": 1-3 spoken sentences, max 55 words. Natural spoken language: no markdown, no LaTeX, no citations, no "in this section". Write symbols and model names the way they are said aloud ("pi zero", "L flow"). Explain the idea; don't announce it. Define a term only if this listener probably doesn't know it. Use an analogy from the listener's world only where it truly clarifies.
 - "subtitle": the on-screen caption, max 12 words: the beat's key idea, not a copy of its first sentence.
 - "quote": the number of the verified quote that supports this beat, or null. At most 2 quotes per section.
 - "speaker": {speaker_rule}

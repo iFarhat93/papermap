@@ -17,7 +17,7 @@ from papermap.stages.parse import parse_pdf
 
 
 def _ctx(tmp_path, pdf, profile_text="Name: Grace"):
-    config, _ = load_config(None, {"llm": {"provider": "mock", "model": "mock"}, "pipeline": {"concurrency": 2}})
+    config, _ = load_config(None, {"llm": {"provider": "mock", "model": "mock"}, "pipeline": {"concurrency": 2, "use_latex": False}})
     return RunContext(config=config, cache=Cache(tmp_path / "cache"), out_dir=tmp_path / "out", source=str(pdf), profile_text=profile_text)
 
 
@@ -54,6 +54,11 @@ def test_pipeline_produces_the_artifact(generated):
     diagrams = [s["diagram"] for v in exp["views"].values() for s in v["sections"] if s["diagram"]]
     assert diagrams and {d["type"] for d in diagrams} >= {"flow"}
     assert exp["graph"]["center"] == "this-work"
+    # source viewer: rendered pages, every beat points at a page, quotes are highlighted
+    assert exp["paper"]["pages"] and (out / exp["paper"]["pages"][0]["src"]).is_file()
+    beats = [b for v in exp["views"].values() for s in v["sections"] for b in s["beats"]]
+    assert all(b["source"] and b["source"]["page"] >= 1 for b in beats)
+    assert any(b["source"]["rects"] for b in beats if b["quote"])
     html = (out / "index.html").read_text("utf-8")
     assert "{{DATA}}" not in html and "/*{{SCRIPT}}*/" not in html
     assert '<script id="papermap-data" type="application/json">{' in html
@@ -77,7 +82,7 @@ def test_rerun_is_cached_and_reproducible(generated, sample_pdf):
     before = (ctx.out_dir / "experience.json").read_text("utf-8")
     ctx2 = _ctx(tmp, sample_pdf)
     second = run_pipeline(ctx2)
-    assert set(second.cached) == {"parse", "understand", "profile", "explain", "diagrams", "graph", "narrate"}
+    assert set(second.cached) == {"parse", "understand", "profile", "explain", "review", "diagrams", "graph", "narrate"}
     assert (ctx2.out_dir / "experience.json").read_text("utf-8") == before
 
 
@@ -106,7 +111,7 @@ def test_qa_engine_answers_with_section_refs(generated):
 def test_cli_run_end_to_end(tmp_path, sample_pdf, profile_md, monkeypatch):
     monkeypatch.setenv("PAPERMAP_CACHE_DIR", str(tmp_path / "cache"))
     out = tmp_path / "site"
-    code = main([str(sample_pdf), "--profile", str(profile_md), "--provider", "mock", "-o", str(out), "-q"])
+    code = main([str(sample_pdf), "--profile", str(profile_md), "--provider", "mock", "-o", str(out), "-q", "--no-latex"])
     assert code == 0
     assert (out / "index.html").is_file()
     (out / "index.html").unlink()
@@ -117,4 +122,4 @@ def test_cli_run_end_to_end(tmp_path, sample_pdf, profile_md, monkeypatch):
 
 def test_cli_unknown_stage_is_an_error(tmp_path, sample_pdf, monkeypatch):
     monkeypatch.setenv("PAPERMAP_CACHE_DIR", str(tmp_path / "cache"))
-    assert main([str(sample_pdf), "--provider", "mock", "-o", str(tmp_path / "o"), "--force", "nope", "-q"]) == 2
+    assert main([str(sample_pdf), "--provider", "mock", "-o", str(tmp_path / "o"), "--force", "nope", "-q", "--no-latex"]) == 2

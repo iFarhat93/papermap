@@ -75,6 +75,17 @@ def grounding_text(paper: ParsedPaper, und: Understanding, section_id: str, max_
     return section_text(paper, su, max_chars)
 
 
+def section_tables(paper: ParsedPaper, und: Understanding, section_id: str) -> list:
+    """Structured tables that belong to a logical section: placed in it, or cited by it."""
+    su = und.section(section_id)
+    if su is None or not paper.tables:
+        return []
+    raw = {r.partition("#")[0] for r in su.raw_section_ids}
+    text = grounding_text(paper, und, section_id, 10**9)
+    cited = {int(n) for n in re.findall(r"\bTables?\s+(\d+)", text)}
+    return [t for t in paper.tables if t.raw_section_id in raw or t.number in cited]
+
+
 def context_block(paper_title: str, label: str, text: str) -> str:
     return f'PAPER: "{paper_title}"\n\n{label}:\n<<<\n{text.strip()}\n>>>'
 

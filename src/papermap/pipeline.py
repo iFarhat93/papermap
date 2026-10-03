@@ -1,6 +1,6 @@
 """Pipeline orchestration:
 
-Paper -> parse -> understand -> profile -> explain -> diagrams -> graph -> narrate -> render
+Paper -> parse -> understand -> profile -> explain -> review -> diagrams -> graph -> narrate -> render
 
 Every cacheable stage is keyed by (stage name, version, source hash of its
 module, keys of its dependencies, relevant config). A cached stage is loaded
@@ -22,7 +22,7 @@ from typing import Any, Iterable
 from .config import stable_hash
 from .log import stage_logger
 from .models import SCHEMA_VERSION, Experience
-from .stages import diagrams, explain, graph, narrate, parse, profile, render, understand
+from .stages import diagrams, explain, graph, narrate, parse, profile, render, review, understand
 from .stages.base import RunContext, Stage
 
 STAGES: list[Stage] = [
@@ -30,6 +30,7 @@ STAGES: list[Stage] = [
     understand.STAGE,
     profile.STAGE,
     explain.STAGE,
+    review.STAGE,
     diagrams.STAGE,
     graph.STAGE,
     narrate.STAGE,
@@ -67,10 +68,13 @@ def _package_source_hash() -> str:
 
 
 def _source_hash(stage: Stage) -> str:
-    if stage.name == "parse":  # parsing must not depend on unrelated code edits beyond its module
+    if stage.name == "parse":  # parsing depends only on its own module and the paper-source readers
         module = sys.modules.get(stage.run.__module__)
+        root = Path(__file__).parent
         try:
-            return stable_hash(inspect.getsource(module))[:16] if module else ""
+            parts = [inspect.getsource(module)] if module else []
+            parts += [p.read_text("utf-8") for p in sorted((root / "sources").glob("*.py"))]
+            return stable_hash(parts)[:16]
         except (OSError, TypeError):
             return ""
     return _package_source_hash()

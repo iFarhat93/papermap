@@ -70,18 +70,40 @@ def _number_forms(value: float | str) -> set[str]:
         f = float(s)
     except ValueError:
         return forms
-    for decimals in range(0, 5):
-        forms.add(f"{f:.{decimals}f}")
+
+    def exact(g: float, decimals: int) -> str | None:
+        text = f"{g:.{decimals}f}"
+        return text if abs(float(text) - g) < 1e-9 * max(1.0, abs(g)) else None  # never a lossy rounding
+
+    for g in (f, f * 100, f / 100):  # 0.853 <-> 85.3: fractions written as percentages and back
+        for decimals in range(0, 5):
+            t = exact(g, decimals)
+            if t:
+                forms.add(t)
     if f == int(f):
         forms.add(str(int(f)))
         forms.add(f"{int(f):,}")
-    # 0.853 <-> 85.3 (fractions written as percentages and vice versa)
-    for g in (f * 100, f / 100):
-        for decimals in range(0, 4):
-            forms.add(f"{g:.{decimals}f}")
     if s.startswith("0."):
         forms.add(s[1:])  # ".853"
     return {x for x in forms if x and x not in ("0", "-0")}
+
+
+_NUM_IN_TEXT = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\d])")
+
+
+def _rounding_match(value: float | str, hay: str) -> bool:
+    """'about 41%' is fine when the text says 41.2%: the value must be a rounding of a real number."""
+    s = str(value).strip().rstrip("%").replace(",", "")
+    try:
+        f = float(s)
+    except ValueError:
+        return False
+    decimals = len(s.split(".")[1]) if "." in s else 0
+    for m in _NUM_IN_TEXT.finditer(hay):
+        x = float(m.group(0))
+        if x != f and round(x, decimals) == f and len(m.group(0).replace(".", "")) > len(s.replace(".", "")):
+            return True
+    return False
 
 
 def _scientific_match(value: float | str, hay: str) -> bool:
@@ -109,7 +131,52 @@ def number_in_text(value: float | str | None, text: str) -> bool:
     for form in _number_forms(value):
         if re.search(rf"(?<![\d.]){re.escape(form)}(?![\d])", hay):
             return True
-    return _scientific_match(value, hay)
+    return _scientific_match(value, hay) or _rounding_match(value, hay)
+
+
+_LABEL_STOP = {"the", "and", "with", "from", "for", "of", "on", "in", "to", "a", "an", "by", "vs", "at", "as", "model"}
+
+
+def canon(text: str) -> str:
+    """Comparable form for labels: "$\\pi_0$-FAST" and "π0-FAST" both become "pi0 fast"."""
+    t = unicodedata.normalize("NFKC", text).lower().replace("π", "pi")
+    t = re.sub(r"[\\$_^{}]", "", t)
+    return re.sub(r"[^a-z0-9.%]+", " ", t).strip()
+
+
+def label_matches(label: str, text: str) -> bool:
+    lab = canon(label)
+    if not lab:
+        return False
+    hay = canon(text)
+    if lab in hay:
+        return True
+    tokens = [t for t in lab.split() if len(t) >= 2 and t not in _LABEL_STOP]
+    if not tokens:
+        return False
+    have = set(hay.split())
+    hit = sum(1 for t in tokens if t in have)
+    return hit >= max(1, -(-len(tokens) * 6 // 10))  # at least 60% of the label's words
+
+
+def number_near_label(value: float | str, label: str, text: str, tables=(), window: int = 220) -> bool:
+    """Attribution check: the number must sit next to its label - in the same table
+    row (or column), or within `window` characters of the label in the text."""
+    if value is None or not str(label).strip():
+        return True
+    for t in tables:
+        for row in t.rows:
+            if row and (label_matches(label, row[0]) or label_matches(label, " ".join(row))) and number_in_text(value, " | ".join(row[1:])):
+                return True
+        for ci, col in enumerate(t.columns):
+            if col and label_matches(label, col) and any(ci < len(r) and number_in_text(value, r[ci]) for r in t.rows):
+                return True
+    hay = normalize(text).replace(",", "")
+    for form in _number_forms(value):
+        for m in re.finditer(rf"(?<![\d.]){re.escape(form)}(?![\d])", hay):
+            if label_matches(label, hay[max(0, m.start() - window) : m.end() + window]):
+                return True
+    return False
 
 
 def name_in_text(name: str, text_lower: str) -> bool:

@@ -17,6 +17,13 @@ papermap paper.pdf -p profile.md --provider mock      # offline and deterministi
 
 `profile.md` is free-form Markdown. Say who the listener is, what they already know, what is new to them, what they care about, how deep to go, the tone that works for them and the narration language. See the example in [`examples/profile.example.md`](../examples/profile.example.md). The `profile` stage turns it into a structured audience model, and every explanation is written against it. Concepts the listener already knows are not re-explained. Concepts they are missing get a short definition. Analogies come from fields the listener knows.
 
+## Paper sources, figures and the source viewer
+
+- **arXiv LaTeX source.** When the paper is on arXiv (from the link, the "arXiv:" stamp in the PDF, or an exact title match), PaperMap reads its LaTeX source instead of the PDF text. That gives exact section structure, equations, tables and the original figure files. If there is no source, or it cannot be parsed, the PDF is used. Turn this off with `--no-latex` or `use_latex = false`.
+- **Tables** are read as rows and columns (from LaTeX, or from ruled tables in the PDF) and given to the model as tables.
+- **Paper figures** appear next to the generated diagrams: sections that discuss a figure get a "Figure N" toggle on the stage.
+- **Source viewer.** The **Paper** tab shows the PDF page behind each beat, with the quoted passage highlighted. "View in paper" on a quote opens it.
+
 ## Models
 
 All model access goes through one small provider interface (`papermap/llm/base.py`), so you can switch backends without touching the pipeline.
@@ -84,6 +91,9 @@ high_beats = [1, 3]
 deep_beats = [3, 6]
 max_graph_nodes = 36
 include_appendix = false
+use_latex = true             # read the arXiv LaTeX source when available
+paper_figures = true         # show the paper's own figures
+review = true                # fact-check the narration before diagrams and audio
 ```
 
 ## Output
@@ -122,6 +132,9 @@ These checks run in code and do not rely on the model following instructions:
 - **Graph entities** must be named in the paper. Citation markers are stripped and aliases such as acronyms are merged.
 - **Q&A** answers are built only from retrieved excerpts, section notes and graph facts, and they must cite sections.
 
+- **Attribution:** a number in a chart or table must sit next to its label in the paper (same table row or column, or nearby in the text). A correct number under the wrong method is rejected.
+- **Fact-checking pass:** after the narration is written, a second model pass checks each section against the paper for unsupported claims, misattributed numbers and repetition, and applies fixes (a fix that introduces a number not in the paper is ignored). Skip it with `--no-review` or `review = false`.
+
 Grounding reduces errors but cannot eliminate them. A model can still misread a correct passage. Equations are reconstructed from PDF text extraction, which can be imperfect.
 
 ## Debugging
@@ -131,6 +144,8 @@ papermap paper.pdf -p profile.md -v            # debug logging (also always in l
 papermap paper.pdf -p profile.md --until understand
 papermap paper.pdf -p profile.md --force diagrams   # recompute one stage (cached LLM calls are reused)
 papermap paper.pdf -p profile.md --no-cache         # completely fresh run
+papermap paper.pdf -p profile.md --no-latex         # ignore the arXiv LaTeX source, use the PDF text
+papermap paper.pdf -p profile.md --no-review        # skip the fact-checking pass
 papermap stages                                     # list stages and dependencies
 papermap render papermap-out/<folder>               # rebuild a page with the current design (no model calls)
 ```
@@ -149,7 +164,5 @@ The tests build a PDF, run the full pipeline with the `mock` provider, and check
 ## Limitations and roadmap
 
 - Input is PDF only, with text-based PDFs (scanned PDFs need OCR first). HTML papers and LaTeX sources are planned.
-- Tables are read from extracted text. Structured table extraction would improve result charts.
-- Figures from the paper are not shown. Diagrams are generated from the paper's content instead.
 - Q&A answers are not streamed yet.
 - There are no production deployment assumptions. The server is local and single-user, with no authentication.

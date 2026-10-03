@@ -103,6 +103,9 @@ class QAEngine:
         diagram = self._diagram(ctx.get("diagram_id"))
         if diagram:
             parts.append("DIAGRAM THE LISTENER IS ASKING ABOUT:\n" + json.dumps(diagram, ensure_ascii=False))
+        figure = str(ctx.get("figure") or "")[:1500]
+        if figure:
+            parts.append("PAPER FIGURE THE LISTENER IS LOOKING AT (caption):\n" + figure)
         where = []
         if ctx.get("view"):
             where.append(f"{ctx['view']} view")
@@ -110,6 +113,8 @@ class QAEngine:
             where.append(f'section [{section_id}] "{self.titles[section_id]}"')
         if diagram:
             where.append(f'looking at the diagram "{diagram.get("title", "")}"')
+        if figure:
+            where.append(f"looking at {figure.split(':')[0]} of the paper")
         if node:
             where.append(f'asking about the graph node "{node.label}"')
         context = f'PAPER: "{self.exp.paper.title}"\n\n' + "\n\n".join(parts)

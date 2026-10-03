@@ -95,6 +95,10 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
         "narration_style": getattr(args, "style", None),
         "concurrency": getattr(args, "concurrency", None),
     }.items() if v}
+    if getattr(args, "no_latex", False):
+        pipe["use_latex"] = False
+    if getattr(args, "no_review", False):
+        pipe["review"] = False
     if pipe:
         o["pipeline"] = pipe
     return o
@@ -116,6 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--tts", help="narration: browser (default), none, openai, edge")
     run.add_argument("--style", choices=["narrator", "duo"], help="one narrator or a host+expert duo")
     run.add_argument("--concurrency", type=int, help="parallel LLM calls (default 4)")
+    run.add_argument("--no-latex", action="store_true", help="use the PDF text even when the arXiv LaTeX source exists")
+    run.add_argument("--no-review", action="store_true", help="skip the fact-checking pass over the narration")
     run.add_argument("--until", metavar="STAGE", help="stop after this stage")
     run.add_argument("--force", metavar="STAGE", action="append", default=[], help="recompute a stage even if cached (repeatable)")
     run.add_argument("--no-cache", action="store_true", help="ignore all caches (fresh LLM calls)")

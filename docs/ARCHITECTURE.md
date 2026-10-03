@@ -26,7 +26,7 @@ src/papermap/
   models.py         the data contract (stage outputs and the final Experience)
   pipeline.py       stage registry, cache keys, orchestration
   cache.py          content-addressed cache (stages, LLM calls, downloads, audio)
-  grounding.py      quote / number / entity verification against the paper text
+  grounding.py      quote / number / attribution / entity checks against the paper text
   retrieval.py      BM25 for Q&A
   qa.py             grounded question answering over a generated experience
   server.py         static file server + /api/ask + /api/health (stdlib only)
@@ -34,6 +34,7 @@ src/papermap/
   llm/              provider interface, client (cache/retry/JSON), providers
   tts/              text-to-speech providers
   stages/           one module per pipeline stage
+  sources/          arXiv lookup + LaTeX parser, PDF tables/figures, page images + quote location
   web/              index.html template, app.css, app.js (the generated page)
 tests/              pytest suite (mock provider, generated PDF)
 ```
@@ -57,14 +58,15 @@ If an entry with that key exists, the stage is loaded instead of run. Because ke
 
 | Stage | Output model | What it does |
 |---|---|---|
-| `parse` | `ParsedPaper` | Fetches the PDF (path, URL or arXiv). Reads PyMuPDF spans and estimates the body font size. Detects headings from style plus numbering or well-known names, with a sanity filter on the numbering sequence (which removes table cells such as "73.7 MultiNLI"). Strips repeated headers and footers, and splits off references and figure captions. Falls back to page chunks when no structure is found. |
+| `parse` | `ParsedPaper` | Fetches the PDF (path, URL or arXiv). Reads PyMuPDF spans and estimates the body font size. Detects headings from style plus numbering or well-known names, with a sanity filter on the numbering sequence (which removes table cells such as "73.7 MultiNLI"). Strips repeated headers and footers, and splits off references and figure captions. Falls back to page chunks when no structure is found. When the paper is on arXiv, the LaTeX source replaces the PDF text: sections, exact math, resolved references and citations, tables as rows and columns, figure files rendered to PNG, all mapped back to PDF pages. Without LaTeX, ruled PDF tables and figure regions are extracted instead. |
 | `understand` | `Understanding` | One **plan** call chapters the raw sections into 4–9 logical sections and extracts the title, authors, method name, problem, contribution and key result. Sections are re-ordered, de-duplicated, and split when they exceed `max_section_chars`, so nothing is truncated. One **analyze** call per section extracts the summary, key points, verbatim quotes, equations, results, concepts and prior work. A synthetic overview section `s0` is grounded on the abstract. |
 | `profile` | `AudienceProfile` | Turns free-form `profile.md` into a structured audience model. |
 | `explain` | `Explanations` | For each section and each view (`high`, `deep`), writes 1–6 **beats**: spoken narration, an on-screen subtitle and an optional verified quote chosen by index. It also decides whether a diagram is needed and of which type. The prompt includes the whole episode outline, which avoids repetition across sections, plus the listener model. A check rejects numbers that are not in the section text and enforces the beat count. It also writes the suggested Q&A questions. |
-| `diagrams` | `Diagrams` | For each requested diagram, produces a typed spec: `flow` (nodes, edges, groups), `bar`, `table` or `equation`. It also produces a per-beat **focus** map, listing the diagram elements to highlight while each beat plays. Structural problems and ungrounded numbers are fed back to the model; a diagram that cannot be fixed is skipped. |
+| `review` | `Explanations` | Fact-checks every section's beats against the section text and its tables: unsupported claims, numbers attached to the wrong thing, repetition. Corrections are applied unless they introduce a number that is not in the paper; the issues are kept in `debug/review.json`. |
+| `diagrams` | `Diagrams` | For each requested diagram, produces a typed spec: `flow` (nodes, edges, groups), `bar`, `table` or `equation`. It also produces a per-beat **focus** map, listing the diagram elements to highlight while each beat plays. Structural problems, ungrounded numbers and misattributed numbers (a value that is not next to its label in a table row, column or sentence) are fed back to the model; a diagram that cannot be fixed is skipped. |
 | `graph` | `KnowledgeGraph` | Per-section entity and relation extraction, followed by a deterministic merge: citation markers are stripped, aliases and acronyms are resolved with union-find, entities not named in the paper are dropped, relations come from a closed vocabulary, and the graph is pruned to the most connected nodes. |
 | `narrate` | `Narration` | Synthesizes one audio clip per beat, cached by text and voice, or defers narration to the browser. |
-| `render` | `Experience` | Assembles the artifact and writes `index.html` with the data, CSS and JS inlined, plus `qa_index.json` and the audio files. This stage is never cached. |
+| `render` | `Experience` | Assembles the artifact and writes `index.html` with the data, CSS and JS inlined, plus `qa_index.json` and the audio files. It renders the PDF pages, locates every quote in the PDF (highlight boxes for the source viewer) and copies the paper's figures to the sections that discuss them. This stage is never cached. |
 
 All LLM stages run their per-section calls in parallel (`pipeline.concurrency`).
 
@@ -97,6 +99,7 @@ The page's main parts are in `app.js`:
   - Bar charts use zero baselines, at most three series, selective value labels and hover tooltips.
   - Tables and KaTeX equations with term chips round out the renderers.
 - **Knowledge graph.** A deterministic force-directed layout with pan, zoom and drag, plus type filters, search, rings around nodes that appear in the current section, and a details panel that links back to sections.
+- **Source viewer and paper figures.** The Paper tab shows the rendered PDF page behind the current beat, with the quoted passage highlighted (zoomed and scrolled into view); it follows the narration until you browse away. Sections that discuss one of the paper's figures get Diagram / Figure N toggles on the stage. Inline `$...$` math in captions, quotes and the transcript is rendered with KaTeX, and narration is converted to speakable text before browser speech.
 - **Q&A.** The page calls `api/health` and `api/ask` relative to its own URL. Q&A works in the side panel, scoped to a section, diagram or node, and as a full mode that unlocks after the paper is finished. Answers render with `[sN]` citation chips that jump to the cited section.
 
 ## Q&A server

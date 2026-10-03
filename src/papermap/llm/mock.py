@@ -186,6 +186,9 @@ class MockProvider(LLMProvider):
         rels = [{"source": center, "target": n, "relation": "uses", "description": "mentioned together"} for n in names[:4]]
         return {"entities": ents, "relations": rels}
 
+    def _task_review(self, prompt: str, context: str):
+        return {"issues": [], "beats": []}
+
     def _task_questions(self, prompt: str, context: str):
         return {"questions": [
             "What problem does this paper solve?",

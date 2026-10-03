@@ -87,8 +87,9 @@ def resolve_source(source: str, ctx: RunContext | None = None) -> Path:
         raise RuntimeError(f"could not download {url}: {e}") from e
     if not r.content.startswith(b"%PDF"):
         raise RuntimeError(
-            f"{url} did not return a PDF (content-type {r.headers.get('content-type')}). "
-            "Only PDF files, PDF URLs and arXiv links are supported."
+            f"{url} did not return a PDF (content-type {r.headers.get('content-type')}). The site may block "
+            "automated downloads: open the link in your browser, save the PDF and pass its path instead "
+            "(or use the paper's arXiv link if it has one)."
         )
     if ctx is None:
         import tempfile
@@ -403,13 +404,18 @@ def parse_pdf(path: Path, source: str | None = None) -> ParsedPaper:
 
 
 def _run(ctx: RunContext, deps: dict) -> ParsedPaper:
+    from ..sources.enrich import enrich
+
     log = STAGE.log()
     path = resolve_source(ctx.source, ctx)
-    paper = parse_pdf(path, source=ctx.source)
+    paper = parse_pdf(path, source=ctx.source).model_copy(update={"pdf_path": str(path.resolve())})
+    cfg = ctx.config.pipeline
+    paper = enrich(paper, ctx.source, ctx.cache, use_latex=cfg.use_latex, figures=cfg.paper_figures)
     chars = sum(len(s.text) for s in paper.sections)
     log.info(
-        "%s: %d pages, %d sections, %d references, %d figures, %s chars",
-        paper.title[:70], paper.n_pages, len(paper.sections), len(paper.references), len(paper.figures), f"{chars:,}",
+        "%s: %d pages, %d sections, %d references, %d figures, %d tables, %s chars (%s)",
+        paper.title[:70], paper.n_pages, len(paper.sections), len(paper.references), len(paper.figures),
+        len(paper.tables), f"{chars:,}", "LaTeX source" if paper.source_kind == "latex" else "PDF text",
     )
     for s in paper.sections:
         log.debug("  %s [%s] p%d-%d %d chars", s.id, s.heading, s.page_start, s.page_end, len(s.text))
@@ -418,7 +424,9 @@ def _run(ctx: RunContext, deps: dict) -> ParsedPaper:
 
 def _key(ctx: RunContext):
     p = Path(ctx.source).expanduser()
-    return file_sha256(p) if p.is_file() else ctx.source
+    src = file_sha256(p) if p.is_file() else ctx.source
+    cfg = ctx.config.pipeline
+    return {"source": src, "latex": cfg.use_latex, "figures": cfg.paper_figures}
 
 
 STAGE = Stage(

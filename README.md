@@ -2,13 +2,14 @@
 
 Turn a scientific paper into an interactive, narrated walkthrough written for one specific reader.
 
-![PaperMap demo: "Attention Is All You Need" explained for a software engineer moving into ML](docs/images/demo.gif)
+![PaperMap demo: "Knowledge Insulating Vision-Language-Action Models" explained for an AI and robotics researcher](docs/images/demo.gif)
 
 You give it a paper (a PDF or an arXiv link) and a short `profile.md` describing the reader. It builds one self-contained web page with:
 
 - **High-level and deep-dive views.** Section-by-section narration with diagrams that highlight what is being explained.
 - **A knowledge graph.** How the paper connects to prior work, models, datasets and concepts.
 - **Q&A.** Answers grounded in the paper, with links back to the sections they come from.
+- **Stays close to the paper.** Uses the arXiv LaTeX source when available (exact equations, tables, figures), shows the paper's own figures, and opens the source page with the quoted passage highlighted. Numbers are checked against the paper, and a fact-checking pass reviews the narration.
 
 It runs with local models (Ollama, vLLM, llama.cpp, LM Studio) or with cloud APIs.
 

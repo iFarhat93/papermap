@@ -63,11 +63,52 @@ _CENTER_ALIASES = {"this work", "this paper", "our method", "our approach", "our
 
 
 _CITATION = re.compile(r"\s*(\[[\d,;\s\-–]+\]|\(\s*(19|20)\d\d[a-z]?\s*\))")
+_GREEK = {"alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε", "theta": "θ", "lambda": "λ",
+          "mu": "μ", "pi": "π", "rho": "ρ", "sigma": "σ", "tau": "τ", "phi": "φ", "psi": "ψ", "omega": "ω"}
+
+
+def delatex(name: str) -> str:
+    """'$\\pi_0$-FAST' -> 'π0-FAST', '$\\pi_{0.5}$' -> 'π0.5' (graph labels are plain SVG text)."""
+    name = re.sub(r"(?<!\\)\bpi_\{?([0-9.]+)\}?", "π\\1", name)  # bare "pi_0" / "pi_{0.5}"
+    if "$" not in name and "\\" not in name:
+        return name
+    s = name.replace("$", "")
+    s = re.sub(r"\\(text|mathrm|mathbf|textbf|emph|operatorname|mathit)\{([^}]*)\}", r"\2", s)
+    s = re.sub(r"\\(" + "|".join(_GREEK) + r")(?![A-Za-z])", lambda m: _GREEK[m.group(1)], s)
+    s = re.sub(r"[_^]\{([^}]*)\}", r"\1", s)
+    s = re.sub(r"[_^](\w)", r"\1", s)
+    s = re.sub(r"\\[A-Za-z]+", "", s).replace("{", "").replace("}", "")
+    return " ".join(s.split())
 
 
 def clean_label(name: str) -> str:
-    """Drop citation markers: "ConvS2S [9]" -> "ConvS2S", "Luong et al. (2015)" -> "Luong et al."."""
-    return re.sub(r"\s+", " ", _CITATION.sub("", name)).strip(" ,;")
+    """Drop citation markers and LaTeX: "ConvS2S [9]" -> "ConvS2S", "Luong et al. (2015)" -> "Luong et al."."""
+    return re.sub(r"\s+", " ", _CITATION.sub("", delatex(name))).strip(" ,;")
+
+
+_CITE_NAME = re.compile(r"^([A-Z][\w\-' ]*?)(?: et al\.?)?,?\s*\(?((?:19|20)\d\d)?[a-z]?\)?$")
+
+
+def cited_work(name: str, references: list[str]) -> tuple[str, str] | None:
+    """'Black et al., 2024' -> (short name, title) from the bibliography, e.g. ('π0', 'π0: A vision-language...')."""
+    m = _CITE_NAME.match(name.strip())
+    if not m or (not m.group(2) and "et al" not in name):
+        return None
+    surname, year = m.group(1).split()[-1], m.group(2) or ""
+    if not year:  # "Black et al." without a year: only when exactly one reference matches
+        hits = [r for r in references if surname in re.split(r"(?<![\s.\-][A-Z])\.\s+", r)[0]]
+        if len(hits) != 1:
+            return None
+    for ref in references:
+        # sentence ends, but not author initials ("Tony Z. Zhao")
+        parts = [p.strip() for p in re.split(r"(?<![\s.\-][A-Z])\.\s+", ref) if p.strip()]
+        if len(parts) < 2 or surname not in parts[0] or year not in ref:
+            continue
+        title = delatex(parts[1])
+        head = title.split(":")[0].strip()
+        short = head if ":" in title and 1 <= len(head) <= 24 else ""
+        return short, title
+    return None
 
 
 def _canon(name: str) -> str:
@@ -145,33 +186,44 @@ def merge_graph(
     full_text: str,
     extra_prior: list[tuple[str, str, str]],
     max_nodes: int,
+    references: list[str] | None = None,
 ) -> KnowledgeGraph:
     """Deterministically merge per-section extractions into one graph.
 
     per_section: (section_id, extraction, section_text)
     extra_prior: (section_id, name, relation text) from the understand stage
     """
-    full_low = lower_text(full_text)
+    full_low = lower_text(full_text) + " | " + lower_text(delatex(full_text))
     center_keys = _alias_keys(center_label) | _CENTER_ALIASES
 
-    mentions: list[dict] = []  # each: name, type, description, evidence, section
+    def resolve(name: str) -> tuple[str, str, str]:
+        """Citation-style names become the cited work: 'Black et al., 2024' -> 'π0' (alias kept)."""
+        cw = cited_work(name, references or [])
+        if not cw:
+            return name, "", ""
+        short, title = cw
+        return (short, name, title) if short else (name, "", title)
+
+    mentions: list[dict] = []  # each: name, alias, type, description, evidence, section
     for sid, g, text in per_section:
         for e in g.entities:
-            name = clean_label(e.name)
+            name, alias, title = resolve(clean_label(e.name))
             if len(name) < 2:
                 continue
             ev = find_quote(e.evidence, text) if e.evidence else None
-            mentions.append({"name": name, "type": e.type, "description": e.description.strip(), "evidence": ev or "", "section": sid})
-    for sid, name, _ in extra_prior:
-        if len(clean_label(name)) >= 2:
-            mentions.append({"name": clean_label(name), "type": "prior_work", "description": "", "evidence": "", "section": sid})
-    mentions.append({"name": center_label, "type": "this_work", "description": "", "evidence": "", "section": "s0"})
+            mentions.append({"name": name, "alias": alias, "type": e.type, "description": e.description.strip() or title,
+                             "evidence": ev or "", "section": sid})
+    for sid, raw, _ in extra_prior:
+        name, alias, title = resolve(clean_label(raw))
+        if len(name) >= 2:
+            mentions.append({"name": name, "alias": alias, "type": "prior_work", "description": title, "evidence": "", "section": sid})
+    mentions.append({"name": center_label, "alias": "", "type": "this_work", "description": "", "evidence": "", "section": "s0"})
 
     # union mentions sharing an alias key
     uf = _UnionFind()
     key_owner: dict[str, int] = {}
     for i, m in enumerate(mentions):
-        keys = _alias_keys(m["name"])
+        keys = _alias_keys(m["name"]) | (_alias_keys(m["alias"]) if m["alias"] else set())
         if keys & center_keys:
             keys |= {"__center__"}
         for k in keys:
@@ -198,9 +250,9 @@ def merge_graph(
             types.pop("this_work", None)
             non_concept = {t: c for t, c in types.items() if t != "concept"}
             ntype = max(non_concept, key=non_concept.get) if non_concept else "concept"
-        aliases = sorted({m["name"] for m in ms} - {label})[:6]
+        aliases = sorted(({m["name"] for m in ms} | {m["alias"] for m in ms if m["alias"]}) - {label})[:6]
         evidence = next((m["evidence"] for m in ms if m["evidence"]), "")
-        grounded = is_center or bool(evidence) or any(name_in_text(n, full_low) for n in names)
+        grounded = is_center or bool(evidence) or any(name_in_text(n, full_low) for n in list(names) + aliases)
         if not grounded:
             continue
         nid = "this-work" if is_center else _slug(label)
@@ -293,7 +345,7 @@ def _run(ctx: RunContext, deps: dict) -> KnowledgeGraph:
 
     per_section = ctx.parallel(extract, und.sections)
     extra = [(s.id, p.name, p.relation) for s in und.sections for p in s.prior_work]
-    kg = merge_graph(per_section, center, paper.full_text, extra, cfg.max_graph_nodes)
+    kg = merge_graph(per_section, center, paper.full_text, extra, cfg.max_graph_nodes, references=paper.references)
     types = Counter(n.type for n in kg.nodes)
     log.info("%d nodes, %d edges %s", len(kg.nodes), len(kg.edges), dict(types))
     return kg

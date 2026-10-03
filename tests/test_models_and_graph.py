@@ -60,3 +60,14 @@ def test_merge_graph_resolves_aliases_and_grounds():
 def test_bm25_ranks_relevant_chunk_first():
     idx = BM25(["the router selects experts", "results on glue benchmark accuracy", "related work on attention"])
     assert idx.top("glue accuracy", k=1)[0][0] == 1
+
+
+def test_graph_labels_from_latex_and_citations():
+    from papermap.stages.graph import cited_work, delatex
+
+    assert delatex(r"$\pi_0$-FAST") == "π0-FAST" and delatex("pi_{0.5}") == "π0.5" and delatex("spin_up") == "spin_up"
+    refs = [r"Kevin Black, Noah Brown, and Ury Zhilinsky. $\pi_0$: A vision-language-action flow model. arXiv, 2024.",
+            "Tony Z. Zhao, Vikash Kumar, and Chelsea Finn. Learning fine-grained bimanual manipulation. RSS, 2023."]
+    assert cited_work("Black et al., 2024", refs) == ("π0", "π0: A vision-language-action flow model")
+    assert cited_work("Zhao et al., 2023", refs) == ("", "Learning fine-grained bimanual manipulation")
+    assert cited_work("PaliGemma", refs) is None

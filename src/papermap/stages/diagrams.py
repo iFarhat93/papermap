@@ -9,11 +9,11 @@ import re
 
 from pydantic import Field, field_validator, model_validator
 
-from ..grounding import number_in_text
+from ..grounding import number_in_text, number_near_label
 from ..llm import LLMOutputError
 from ..models import AudienceProfile, Diagram, Diagrams, Explanations, Model, ParsedPaper, Understanding
 from .base import SYSTEM_PROMPT, RunContext, Stage
-from .common import context_block, grounding_text
+from .common import context_block, grounding_text, section_tables
 
 
 class DiagramOut(Model):
@@ -44,7 +44,7 @@ TYPE_SPECS = {
   "groups": [{{"id": "short_id", "label": "max 3 words"}}]}}
 Rules: {min_nodes}-{max_nodes} nodes, every node connected by at least one edge. Labels name the actual components from the paper, not generic boxes. Use groups for blocks such as an encoder or a training loop (optional). "LR" for pipelines and data flow, "TB" for stacks and hierarchies.""",
     "bar": """"diagram": {{"type": "bar", "title": "max 6 words", "caption": "one-sentence takeaway", "categories": ["method or setting", "..."], "series": [{{"name": "metric or condition", "values": [1.0, 2.0]}}], "unit": "e.g. BLEU, %, ms", "higher_is_better": true}}
-Rules: copy every value exactly as it appears in the section text (table cells count). 2-8 categories, 1-3 series, one value per category in each series (null if missing). Include the paper's method and its main baselines.""",
+Rules: copy every value exactly as it appears in the section text or its tables, and keep it with the label it belongs to (the same table row or the same sentence). 2-8 categories, 1-3 series, one value per category in each series (null if missing). Include the paper's method and its main baselines.""",
     "table": """"diagram": {{"type": "table", "title": "max 6 words", "caption": "one-sentence takeaway", "columns": ["", "column", "..."], "rows": [["row label", "cell", "..."]]}}
 Rules: 2-5 columns, 2-7 rows, the first cell of each row is its label, cells max 6 words, numbers copied exactly from the text.""",
     "equation": """"diagram": {{"type": "equation", "title": "max 6 words", "caption": "one-sentence takeaway", "latex": "the equation in LaTeX, without $ delimiters", "terms": [{{"symbol": "LaTeX of one symbol", "meaning": "plain-language meaning"}}]}}
@@ -90,7 +90,12 @@ def _facts(su) -> str:
     return "\n".join(lines)
 
 
-def _grounding_check(grounding: str):
+def _grounding_check(grounding: str, tables=()):
+    """Numbers must exist in the section text or its tables AND sit next to their
+    label (attribution): a correct number under the wrong method is rejected."""
+    table_text = "\n".join(t.as_text() for t in tables)
+    source = f"{grounding}\n{table_text}"
+
     def check(out: DiagramOut) -> list[str]:
         try:
             d = Diagram.model_validate({"id": "tmp", "title": "", **out.diagram})
@@ -100,14 +105,26 @@ def _grounding_check(grounding: str):
         if d.type == "bar":
             for s in d.series:
                 for cat, v in zip(d.categories, s.values):
-                    if v is not None and not number_in_text(v, grounding):
+                    if v is None:
+                        continue
+                    if not number_in_text(v, source):
                         problems.append(f"value {v} ({s.name} / {cat}) does not appear in the section text")
+                    elif not (number_near_label(v, cat, source, tables) or number_near_label(v, s.name, source, tables)):
+                        problems.append(
+                            f"value {v} is in the paper but not next to “{cat}” or “{s.name}”: check that it really "
+                            "belongs to them (use the matching table row or sentence)"
+                        )
         if d.type == "table":
             for row in d.rows:
-                for cell in row[1:]:
+                for ci, cell in enumerate(row[1:], start=1):
                     for n in re.findall(r"\d+(?:\.\d+)?", cell):
-                        if len(n) >= 2 and not number_in_text(n, grounding):
+                        if len(n) < 2:
+                            continue
+                        if not number_in_text(n, source):
                             problems.append(f"number {n} in row {row[0]!r} does not appear in the section text")
+                        elif not (number_near_label(n, row[0], source, tables)
+                                  or (ci < len(d.columns) and number_near_label(n, d.columns[ci], source, tables))):
+                            problems.append(f"number {n} is in the paper but not next to {row[0]!r}: check the attribution")
         return problems[:10]
 
     return check
@@ -118,7 +135,7 @@ def _run(ctx: RunContext, deps: dict) -> Diagrams:
     paper: ParsedPaper = deps["parse"]
     und: Understanding = deps["understand"]
     profile: AudienceProfile = deps["profile"]
-    exp: Explanations = deps["explain"]
+    exp: Explanations = deps["review"]
     llm = ctx.llm("diagrams")
     cfg = ctx.config.pipeline
 
@@ -129,6 +146,7 @@ def _run(ctx: RunContext, deps: dict) -> Diagrams:
         su = und.section(sv.section_id)
         brief = sv.diagram_brief
         grounding = grounding_text(paper, und, sv.section_id, cfg.max_section_chars)
+        tables = section_tables(paper, und, sv.section_id)
         max_el = 6 if view == "high" else 12
         spec = TYPE_SPECS[brief.type].format(min_nodes=3, max_nodes=max_el)
         beats = "\n".join(f'{b.id}: "{b.narration}"' for b in sv.beats)
@@ -150,7 +168,7 @@ def _run(ctx: RunContext, deps: dict) -> Diagrams:
                 DiagramOut,
                 system=SYSTEM_PROMPT,
                 context=context_block(und.overview.title, f"SECTION TEXT ({sv.title})", grounding),
-                check=_grounding_check(grounding),
+                check=_grounding_check(grounding, tables),
                 tag=f"diagrams.{view}.{sv.section_id}",
             )
         except LLMOutputError as e:
@@ -184,7 +202,7 @@ def _run(ctx: RunContext, deps: dict) -> Diagrams:
 STAGE = Stage(
     name="diagrams",
     version="1",
-    deps=("parse", "understand", "profile", "explain"),
+    deps=("parse", "understand", "profile", "review"),
     output=Diagrams,
     run=_run,
     key_extra=lambda ctx: {"chars": ctx.config.pipeline.max_section_chars},
