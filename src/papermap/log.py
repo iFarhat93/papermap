@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-LOGGER_NAME = "paper2podcast"
+LOGGER_NAME = "papermap"
 
 _COLORS = {"DEBUG": "\033[2m", "INFO": "", "WARNING": "\033[33m", "ERROR": "\033[31m", "CRITICAL": "\033[31;1m"}
 _RESET = "\033[0m"

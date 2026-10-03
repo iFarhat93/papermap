@@ -34,7 +34,7 @@ QA_CHUNK_CHARS = 1100
 
 
 def _web_asset(name: str) -> str:
-    return resources.files("paper2podcast").joinpath("web", name).read_text(encoding="utf-8")
+    return resources.files("papermap").joinpath("web", name).read_text(encoding="utf-8")
 
 
 def build_html(experience: Experience) -> str:
@@ -95,7 +95,7 @@ def assemble(
         views[name] = v
     ov = und.overview
     return Experience(
-        generator=f"paper2podcast {__version__}",
+        generator=f"papermap {__version__}",
         fingerprint=fingerprint,
         paper=PaperMeta(
             title=ov.title,
@@ -130,7 +130,7 @@ def _run(ctx: RunContext, deps: dict) -> Experience:
     (out / "experience.json").write_text(json.dumps(exp.model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8")
     qa_index = build_qa_index(paper, und, ctx.config.pipeline.max_section_chars)
     (out / "qa_index.json").write_text(json.dumps(qa_index, ensure_ascii=False), "utf-8")
-    (out / "p2p.config.json").write_text(json.dumps(ctx.config.public_dump(), ensure_ascii=False, indent=1), "utf-8")
+    (out / "papermap.config.json").write_text(json.dumps(ctx.config.public_dump(), ensure_ascii=False, indent=1), "utf-8")
     (out / "index.html").write_text(build_html(exp), "utf-8")
 
     missing = 0

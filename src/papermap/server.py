@@ -72,7 +72,7 @@ class _Handler(SimpleHTTPRequestHandler):
 def serve(out_dir: Path, engine: QAEngine | None, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
     out_dir = Path(out_dir).resolve()
     if not (out_dir / "index.html").is_file():
-        raise FileNotFoundError(f"{out_dir} has no index.html - generate it first with `paper2podcast run`")
+        raise FileNotFoundError(f"{out_dir} has no index.html - generate it first with `papermap run`")
     handler = partial(_Handler, directory=str(out_dir))
     _Handler.engine = engine
     _Handler.info = (

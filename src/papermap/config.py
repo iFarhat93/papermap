@@ -1,7 +1,7 @@
 """Configuration: TOML file + CLI overrides, validated with pydantic.
 
-Lookup order (first found wins): ``--config PATH``, ``./paper2podcast.toml``,
-``~/.config/paper2podcast/config.toml``. Missing file -> built-in defaults.
+Lookup order (first found wins): ``--config PATH``, ``./papermap.toml``,
+``~/.config/papermap/config.toml``. Missing file -> built-in defaults.
 Secrets never live in the config: providers read API keys from the
 environment variable named by ``api_key_env``.
 """
@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CONFIG_FILENAME = "paper2podcast.toml"
+CONFIG_FILENAME = "papermap.toml"
 
 
 class Section(BaseModel):
@@ -119,7 +119,7 @@ def find_config(explicit: str | Path | None) -> Path | None:
         if not p.is_file():
             raise FileNotFoundError(f"config file not found: {p}")
         return p
-    for candidate in (Path.cwd() / CONFIG_FILENAME, Path.home() / ".config" / "paper2podcast" / "config.toml"):
+    for candidate in (Path.cwd() / CONFIG_FILENAME, Path.home() / ".config" / "papermap" / "config.toml"):
         if candidate.is_file():
             return candidate
     return None
@@ -137,10 +137,10 @@ def load_config(path: str | Path | None = None, overrides: dict[str, Any] | None
 
 
 EXAMPLE_CONFIG = """\
-# paper2podcast configuration. Every key is optional.
+# PaperMap configuration. Every key is optional.
 
 [llm]
-# Cloud (default): Anthropic. Needs `pip install "paper2podcast[anthropic]"` and ANTHROPIC_API_KEY.
+# Cloud (default): Anthropic. Needs `pip install "papermap[anthropic]"` and ANTHROPIC_API_KEY.
 provider = "anthropic"
 model = "claude-opus-5-5"
 effort = "medium"          # low | medium | high | xhigh | max

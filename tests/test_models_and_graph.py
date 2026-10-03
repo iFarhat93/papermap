@@ -1,6 +1,6 @@
-from paper2podcast.models import Diagram, choose
-from paper2podcast.retrieval import BM25
-from paper2podcast.stages.graph import EntityOut, GraphOut, RelationOut, clean_label, merge_graph
+from papermap.models import Diagram, choose
+from papermap.retrieval import BM25
+from papermap.stages.graph import EntityOut, GraphOut, RelationOut, clean_label, merge_graph
 
 
 def test_choose_maps_free_labels_to_vocabulary():

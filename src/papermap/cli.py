@@ -1,10 +1,11 @@
 """Command line interface.
 
-    paper2podcast paper.pdf --profile profile.md          # = paper2podcast run ...
-    paper2podcast serve p2p-out/<name>                     # open it, with grounded Q&A
-    paper2podcast init                                     # write config + profile templates
-    paper2podcast check                                    # test the model/TTS configuration
-    paper2podcast stages                                   # list pipeline stages
+    papermap paper.pdf --profile profile.md      # = papermap run ...
+    papermap serve papermap-out/<name>           # open it, with grounded Q&A
+    papermap render papermap-out/<name>          # rebuild the page with the current design (no model calls)
+    papermap init                                # write config + profile templates
+    papermap check                               # test the model/TTS configuration
+    papermap stages                              # list pipeline stages
 """
 
 from __future__ import annotations
@@ -23,11 +24,11 @@ from .cache import Cache
 from .config import EXAMPLE_CONFIG, Config, load_config
 from .log import add_file_handler, get_logger, setup_logging
 
-COMMANDS = ("run", "serve", "init", "check", "stages")
+COMMANDS = ("run", "serve", "render", "init", "check", "stages")
 
 EXAMPLE_PROFILE = """# Who is listening?
 
-Write freely - paper2podcast reads this file to adapt the explanation.
+Write freely - papermap reads this file to adapt the explanation.
 
 - **Name:** Alex
 - **Background:** software engineer, 6 years of backend work; comfortable with Python and basic linear algebra.
@@ -41,13 +42,13 @@ Write freely - paper2podcast reads this file to adapt the explanation.
 
 
 def default_cache_dir() -> Path:
-    env = os.environ.get("P2P_CACHE_DIR")
+    env = os.environ.get("PAPERMAP_CACHE_DIR")
     if env:
         return Path(env)
     if sys.platform == "win32" and os.environ.get("LOCALAPPDATA"):
-        return Path(os.environ["LOCALAPPDATA"]) / "paper2podcast" / "cache"
+        return Path(os.environ["LOCALAPPDATA"]) / "papermap" / "cache"
     base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(base) / "paper2podcast"
+    return Path(base) / "papermap"
 
 
 def _slug(text: str) -> str:
@@ -63,12 +64,12 @@ def default_out_dir(source: str, profile: str | None) -> Path:
         name = m.group(1) if m else source.rstrip("/").split("/")[-1]
     if profile:
         name = f"{name}--{Path(profile).stem}"
-    return Path("p2p-out") / _slug(name)
+    return Path("papermap-out") / _slug(name)
 
 
 def _add_model_flags(p: argparse.ArgumentParser) -> None:
     g = p.add_argument_group("model")
-    g.add_argument("-c", "--config", help="path to paper2podcast.toml")
+    g.add_argument("-c", "--config", help="path to papermap.toml")
     g.add_argument("--provider", help="LLM provider: anthropic, ollama, openai, vllm, llamacpp, lmstudio, openrouter, openai_compatible, mock")
     g.add_argument("--model", help="model name for the provider")
     g.add_argument("--base-url", help="API base URL (local servers, proxies)")
@@ -101,16 +102,16 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="paper2podcast",
+        prog="papermap",
         description="Turn a scientific paper into an interactive, audience-adapted, podcast-style webpage.",
     )
-    parser.add_argument("--version", action="version", version=f"paper2podcast {__version__}")
+    parser.add_argument("--version", action="version", version=f"papermap {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     run = sub.add_parser("run", help="generate the experience for a paper (default command)")
     run.add_argument("paper", help="PDF path, PDF URL, arXiv URL or arXiv id")
     run.add_argument("-p", "--profile", help="profile.md describing the listener")
-    run.add_argument("-o", "--out", help="output directory (default: p2p-out/<paper>-<profile>)")
+    run.add_argument("-o", "--out", help="output directory (default: papermap-out/<paper>-<profile>)")
     _add_model_flags(run)
     run.add_argument("--tts", help="narration: browser (default), none, openai, edge")
     run.add_argument("--style", choices=["narrator", "duo"], help="one narrator or a host+expert duo")
@@ -134,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     srv.add_argument("--cache-dir")
     srv.add_argument("-v", "--verbose", action="store_true")
 
-    init = sub.add_parser("init", help="write paper2podcast.toml and profile.md templates")
+    init = sub.add_parser("init", help="write papermap.toml and profile.md templates")
     init.add_argument("--dir", default=".", help="where to write them")
     init.add_argument("--force", action="store_true", help="overwrite existing files")
 
@@ -142,6 +143,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_model_flags(chk)
     chk.add_argument("--tts", help="also test this TTS provider")
     chk.add_argument("-v", "--verbose", action="store_true")
+
+    rnd = sub.add_parser("render", help="rebuild index.html of an existing output with the current page design (no model calls)")
+    rnd.add_argument("dir", help="output directory produced by `run`")
+    rnd.add_argument("-v", "--verbose", action="store_true")
 
     sub.add_parser("stages", help="list the pipeline stages")
     return parser
@@ -179,7 +184,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         log.warning("no --profile given; using a generic curious-reader profile")
     cache = Cache(args.cache_dir or default_cache_dir(), enabled=not args.no_cache)
     log.info(
-        "paper2podcast %s | model %s/%s | tts %s | config %s",
+        "papermap %s | model %s/%s | tts %s | config %s",
         __version__, config.llm.provider, config.llm.model, config.tts.provider, found or "defaults",
     )
     log.debug("cache: %s | output: %s", cache.root, out_dir.resolve())
@@ -202,7 +207,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 0
     index = (out_dir / "index.html").resolve()
     log.info("open %s", index)
-    log.info("for Q&A run: paper2podcast serve %s", out_dir)
+    log.info("for Q&A run: papermap serve %s", out_dir)
     if args.serve:
         return _serve(out_dir, config, cache, port=args.port)
     return 0
@@ -234,7 +239,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     setup_logging(args.verbose)
     out_dir = Path(args.dir)
     overrides = _overrides(args)
-    saved = out_dir / "p2p.config.json"
+    saved = out_dir / "papermap.config.json"
     if not args.config and saved.is_file():
         # reuse the configuration the experience was generated with
         base = json.loads(saved.read_text("utf-8"))
@@ -251,14 +256,14 @@ def cmd_init(args: argparse.Namespace) -> int:
     log = setup_logging()
     d = Path(args.dir)
     d.mkdir(parents=True, exist_ok=True)
-    for name, content in (("paper2podcast.toml", EXAMPLE_CONFIG), ("profile.md", EXAMPLE_PROFILE)):
+    for name, content in (("papermap.toml", EXAMPLE_CONFIG), ("profile.md", EXAMPLE_PROFILE)):
         target = d / name
         if target.exists() and not args.force:
             log.info("exists, kept: %s", target)
             continue
         target.write_text(content, "utf-8")
         log.info("wrote %s", target)
-    log.info("next: edit profile.md, then run: paper2podcast paper.pdf --profile %s", d / "profile.md")
+    log.info("next: edit profile.md, then run: papermap paper.pdf --profile %s", d / "profile.md")
     return 0
 
 
@@ -284,12 +289,30 @@ def cmd_check(args: argparse.Namespace) -> int:
         if tts is None:
             log.info("TTS %s: nothing to check (speech happens in the browser)", tts_name)
         else:
-            audio = tts.synthesize("paper2podcast is ready.", tts.voice_for("narrator"))
+            audio = tts.synthesize("papermap is ready.", tts.voice_for("narrator"))
             log.info("TTS %s OK (%d bytes)", tts_name, len(audio))
     except TTSError as e:
         ok = False
         log.error("TTS %s FAILED: %s", tts_name, e)
     return 0 if ok else 1
+
+
+def cmd_render(args: argparse.Namespace) -> int:
+    from .models import Experience
+    from .stages.render import build_html
+
+    log = setup_logging(args.verbose)
+    out_dir = Path(args.dir)
+    exp_path = out_dir / "experience.json"
+    if not exp_path.is_file():
+        log.error("%s has no experience.json - generate it first with `papermap run`", out_dir)
+        return 2
+    exp = Experience.model_validate_json(exp_path.read_text("utf-8"))
+    exp.generator = f"papermap {__version__}"
+    exp_path.write_text(json.dumps(exp.model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8")
+    (out_dir / "index.html").write_text(build_html(exp), "utf-8")
+    log.info("rebuilt %s", (out_dir / "index.html").resolve())
+    return 0
 
 
 def cmd_stages(_: argparse.Namespace) -> int:
@@ -313,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.command:
         parser.print_help()
         return 0
-    handler = {"run": cmd_run, "serve": cmd_serve, "init": cmd_init, "check": cmd_check, "stages": cmd_stages}[args.command]
+    handler = {"run": cmd_run, "serve": cmd_serve, "render": cmd_render, "init": cmd_init, "check": cmd_check, "stages": cmd_stages}[args.command]
     try:
         return handler(args)
     except KeyboardInterrupt:

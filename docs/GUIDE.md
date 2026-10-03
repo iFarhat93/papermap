@@ -5,13 +5,13 @@ Reference for the profile, models, narration, configuration, output and debuggin
 You can choose the model per run without a config file:
 
 ```bash
-paper2podcast paper.pdf -p profile.md --provider ollama --model qwen2.5:7b
-paper2podcast paper.pdf -p profile.md --provider anthropic --model claude-opus-5-5
-paper2podcast paper.pdf -p profile.md --provider vllm --model Qwen/Qwen2.5-32B-Instruct
-paper2podcast paper.pdf -p profile.md --provider mock      # offline and deterministic, for trying the UI
+papermap paper.pdf -p profile.md --provider ollama --model qwen2.5:7b
+papermap paper.pdf -p profile.md --provider anthropic --model claude-opus-5-5
+papermap paper.pdf -p profile.md --provider vllm --model Qwen/Qwen2.5-32B-Instruct
+papermap paper.pdf -p profile.md --provider mock      # offline and deterministic, for trying the UI
 ```
 
-`index.html` also works when opened directly from disk or hosted as a static site. Only Q&A needs `paper2podcast serve`, because answering questions requires a model.
+`index.html` also works when opened directly from disk or hosted as a static site. Only Q&A needs `papermap serve`, because answering questions requires a model.
 
 ## The profile
 
@@ -19,7 +19,7 @@ paper2podcast paper.pdf -p profile.md --provider mock      # offline and determi
 
 ## Models
 
-All model access goes through one small provider interface (`paper2podcast/llm/base.py`), so you can switch backends without touching the pipeline.
+All model access goes through one small provider interface (`papermap/llm/base.py`), so you can switch backends without touching the pipeline.
 
 | `provider` | Backend | Notes |
 |---|---|---|
@@ -38,14 +38,14 @@ model = "claude-opus-5-5"
 provider = "anthropic"
 ```
 
-Third-party backends can register themselves with `paper2podcast.llm.register_provider(name, factory)` or through the `paper2podcast.providers` entry-point group.
+Third-party backends can register themselves with `papermap.llm.register_provider(name, factory)` or through the `papermap.providers` entry-point group.
 
 ## Narration
 
 | `[tts] provider` | What happens |
 |---|---|
 | `browser` (default) | The page speaks with the browser's speech engine. No files, no setup. A voice picker is in the page settings. |
-| `edge` | Microsoft Edge neural voices, saved as MP3 per beat (needs `pip install "paper2podcast[edge-tts]"`). |
+| `edge` | Microsoft Edge neural voices, saved as MP3 per beat (needs `pip install "papermap[edge-tts]"`). |
 | `openai` | Any OpenAI-compatible `/audio/speech` server: OpenAI, or a local server such as Kokoro-FastAPI (set `base_url`, `model` and `voices`). |
 | `none` | Silent. Captions advance at reading speed. |
 
@@ -53,7 +53,7 @@ Set `narration_style = "duo"` for a host-and-expert conversation instead of a si
 
 ## Configuration
 
-Every key is optional. `paper2podcast init` writes a commented template. Configuration is resolved from `--config`, then `./paper2podcast.toml`, then `~/.config/paper2podcast/config.toml`, and finally built-in defaults. API keys are never stored; providers read them from the environment variable named by `api_key_env`.
+Every key is optional. `papermap init` writes a commented template. Configuration is resolved from `--config`, then `./papermap.toml`, then `~/.config/papermap/config.toml`, and finally built-in defaults. API keys are never stored; providers read them from the environment variable named by `api_key_env`.
 
 ```toml
 [llm]
@@ -89,14 +89,14 @@ include_appendix = false
 ## Output
 
 ```
-p2p-out/<paper>-<profile>/
-  index.html          the experience: data, CSS and JS inlined; opens offline
-  audio/              per-beat narration (edge / openai TTS only)
-  experience.json     the full artifact the page renders (schema: paper2podcast/models.py)
-  qa_index.json       retrieval chunks + section notes for Q&A
-  p2p.config.json     the configuration used (no secrets); reused by `serve`
-  debug/<stage>.json  every stage's output, for inspection
-  logs/run.log        full DEBUG log of the run
+papermap-out/<paper>-<profile>/
+  index.html            the experience: data, CSS and JS inlined; opens offline
+  audio/                per-beat narration (edge / openai TTS only)
+  experience.json       the full artifact the page renders (schema: papermap/models.py)
+  qa_index.json         retrieval chunks + section notes for Q&A
+  papermap.config.json  the configuration used (no secrets); reused by `serve`
+  debug/<stage>.json    every stage's output, for inspection
+  logs/run.log          full DEBUG log of the run
 ```
 
 The page supports deep links (`index.html#view=deep&s=3&b=1`), keyboard shortcuts (press `?`), light and dark themes, and phone-sized screens.
@@ -127,14 +127,15 @@ Grounding reduces errors but cannot eliminate them. A model can still misread a 
 ## Debugging
 
 ```bash
-paper2podcast paper.pdf -p profile.md -v            # debug logging (also always in logs/run.log)
-paper2podcast paper.pdf -p profile.md --until understand
-paper2podcast paper.pdf -p profile.md --force diagrams   # recompute one stage (cached LLM calls are reused)
-paper2podcast paper.pdf -p profile.md --no-cache         # completely fresh run
-paper2podcast stages                                     # list stages and dependencies
+papermap paper.pdf -p profile.md -v            # debug logging (also always in logs/run.log)
+papermap paper.pdf -p profile.md --until understand
+papermap paper.pdf -p profile.md --force diagrams   # recompute one stage (cached LLM calls are reused)
+papermap paper.pdf -p profile.md --no-cache         # completely fresh run
+papermap stages                                     # list stages and dependencies
+papermap render papermap-out/<folder>               # rebuild a page with the current design (no model calls)
 ```
 
-The cache lives in `%LOCALAPPDATA%\paper2podcast\cache` on Windows and in `~/.cache/paper2podcast` elsewhere. Override it with `P2P_CACHE_DIR` or `--cache-dir`. Every model request and response is stored there as JSON.
+The cache lives in `%LOCALAPPDATA%\papermap\cache` on Windows and in `~/.cache/papermap` elsewhere. Override it with `PAPERMAP_CACHE_DIR` or `--cache-dir`. Every model request and response is stored there as JSON.
 
 ## Development
 

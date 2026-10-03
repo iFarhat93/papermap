@@ -22,19 +22,19 @@ cd papermap
 pip install -e ".[all]"
 ```
 
-The command-line tool is called `paper2podcast`.
+The command-line tool is called `papermap`.
 
 ## Run
 
 ```bash
 # 1. write a profile.md describing the reader (see examples/)
-paper2podcast init
+papermap init
 
 # 2. generate (here with a local model through Ollama; any PDF path works too)
-paper2podcast https://arxiv.org/abs/1706.03762 --profile profile.md --provider ollama --model qwen2.5:7b
+papermap https://arxiv.org/abs/1706.03762 --profile profile.md --provider ollama --model qwen2.5:7b
 
 # 3. open the result with Q&A enabled
-paper2podcast serve p2p-out/1706.03762-profile
+papermap serve papermap-out/1706.03762-profile
 ```
 
 Optional flags: `--tts edge` adds real voice audio, and `--style duo` switches to a host-and-expert conversation. Re-running is instant because every step is cached.

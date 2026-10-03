@@ -1,12 +1,12 @@
-/* paper2podcast player - vanilla JS, no dependencies.
+/* PaperMap player - vanilla JS, no dependencies.
  * Reads the experience JSON embedded in the page and renders three synchronized
  * views (high-level, deep-dive, knowledge graph), a narrated beat player, typed
- * diagrams with per-beat focus, and grounded Q&A (when served by `paper2podcast serve`).
+ * diagrams with per-beat focus, and grounded Q&A (when served by `papermap serve`).
  */
 (() => {
   'use strict';
 
-  const DATA = JSON.parse(document.getElementById('p2p-data').textContent);
+  const DATA = JSON.parse(document.getElementById('papermap-data').textContent);
   const VIEW_LABEL = { high: 'High-level', deep: 'Deep dive', graph: 'Knowledge graph' };
   const ROLE_LABEL = {
     overview: 'Overview', motivation: 'Motivation', background: 'Background', related_work: 'Related work',
@@ -101,7 +101,7 @@
   }
 
   const store = (() => {
-    const prefix = `p2p:${DATA.fingerprint}:`;
+    const prefix = `papermap:${DATA.fingerprint}:`;
     return {
       get(k, d) {
         try {
@@ -224,7 +224,7 @@
     const authors = (DATA.paper.authors || []).join(', ');
     const topbar = h('header', { class: 'topbar' },
       menuBtn,
-      h('div', { class: 'brand' }, h('span', { class: 'brand-mark' }, icon('wave')), h('span', { class: 'brand-name' }, 'paper2podcast')),
+      h('div', { class: 'brand' }, h('span', { class: 'brand-mark' }, icon('wave')), h('span', { class: 'brand-name' }, 'PaperMap')),
       h('div', { class: 'paper-title', title: authors ? `${DATA.paper.title} — ${authors}` : DATA.paper.title }, DATA.paper.title),
       viewSeg, modeSeg, ui.panelBtn, ui.settingsBtn, ui.themeBtn, ui.helpBtn);
 
@@ -632,8 +632,8 @@
     const L = layoutFlow(d, aspect);
     const font = FONT();
     const id = ++markerSeq;
-    const mk = `p2p-arrow-${id}`;
-    const mkA = `p2p-arrow-a-${id}`;
+    const mk = `pm-arrow-${id}`;
+    const mkA = `pm-arrow-a-${id}`;
     const svg = s('svg', { class: 'diagram-svg diagram-enter', role: 'img', 'aria-label': `${d.title}. ${d.caption || ''}`, preserveAspectRatio: 'xMidYMid meet' });
     svg.append(s('defs', {},
       s('marker', { id: mk, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, s('path', { d: 'M0,0 L10,5 L0,10 z', class: 'arrowhead' })),
@@ -1242,7 +1242,7 @@
   function setMediaSession(sv) {
     if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
     try {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: sv.title, artist: DATA.paper.title, album: 'paper2podcast' });
+      navigator.mediaSession.metadata = new MediaMetadata({ title: sv.title, artist: DATA.paper.title, album: 'PaperMap' });
       navigator.mediaSession.setActionHandler('play', play);
       navigator.mediaSession.setActionHandler('pause', pause);
       navigator.mediaSession.setActionHandler('previoustrack', () => step(-1));
@@ -1325,7 +1325,7 @@
     return [
       h('strong', {}, 'Questions need the local server. '),
       viaFile ? 'This page was opened as a file. ' : 'The Q&A endpoint is not reachable. ',
-      'Run ', h('code', {}, 'paper2podcast serve <output folder>'), ' and open the page it prints.',
+      'Run ', h('code', {}, 'papermap serve <output folder>'), ' and open the page it prints.',
     ];
   }
 

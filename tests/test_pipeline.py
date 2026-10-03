@@ -6,14 +6,14 @@ import json
 
 import pytest
 
-from paper2podcast.cache import Cache
-from paper2podcast.cli import main
-from paper2podcast.config import load_config
-from paper2podcast.llm import LLMClient, create_provider
-from paper2podcast.pipeline import run_pipeline
-from paper2podcast.qa import QAEngine
-from paper2podcast.stages.base import RunContext
-from paper2podcast.stages.parse import parse_pdf
+from papermap.cache import Cache
+from papermap.cli import main
+from papermap.config import load_config
+from papermap.llm import LLMClient, create_provider
+from papermap.pipeline import run_pipeline
+from papermap.qa import QAEngine
+from papermap.stages.base import RunContext
+from papermap.stages.parse import parse_pdf
 
 
 def _ctx(tmp_path, pdf, profile_text="Name: Grace"):
@@ -42,7 +42,7 @@ def generated(tmp_path_factory, sample_pdf):
 def test_pipeline_produces_the_artifact(generated):
     tmp, ctx, result = generated
     out = ctx.out_dir
-    for name in ("index.html", "experience.json", "qa_index.json", "p2p.config.json"):
+    for name in ("index.html", "experience.json", "qa_index.json", "papermap.config.json"):
         assert (out / name).is_file(), name
     exp = json.loads((out / "experience.json").read_text("utf-8"))
     assert exp["paper"]["title"]
@@ -56,7 +56,7 @@ def test_pipeline_produces_the_artifact(generated):
     assert exp["graph"]["center"] == "this-work"
     html = (out / "index.html").read_text("utf-8")
     assert "{{DATA}}" not in html and "/*{{SCRIPT}}*/" not in html
-    assert '<script id="p2p-data" type="application/json">{' in html
+    assert '<script id="papermap-data" type="application/json">{' in html
     assert (out / "debug" / "understand.json").is_file()
 
 
@@ -104,14 +104,17 @@ def test_qa_engine_answers_with_section_refs(generated):
 
 
 def test_cli_run_end_to_end(tmp_path, sample_pdf, profile_md, monkeypatch):
-    monkeypatch.setenv("P2P_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("PAPERMAP_CACHE_DIR", str(tmp_path / "cache"))
     out = tmp_path / "site"
     code = main([str(sample_pdf), "--profile", str(profile_md), "--provider", "mock", "-o", str(out), "-q"])
     assert code == 0
     assert (out / "index.html").is_file()
+    (out / "index.html").unlink()
+    assert main(["render", str(out)]) == 0  # rebuild the page from experience.json, no model calls
+    assert "papermap-data" in (out / "index.html").read_text("utf-8")
     assert main(["stages"]) == 0
 
 
 def test_cli_unknown_stage_is_an_error(tmp_path, sample_pdf, monkeypatch):
-    monkeypatch.setenv("P2P_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("PAPERMAP_CACHE_DIR", str(tmp_path / "cache"))
     assert main([str(sample_pdf), "--provider", "mock", "-o", str(tmp_path / "o"), "--force", "nope", "-q"]) == 2

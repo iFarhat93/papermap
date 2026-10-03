@@ -8,10 +8,10 @@ import pytest
 
 anthropic = pytest.importorskip("anthropic")
 
-from paper2podcast.config import LLMSettings  # noqa: E402
-from paper2podcast.llm import LLMError  # noqa: E402
-from paper2podcast.llm.anthropic_provider import AnthropicProvider  # noqa: E402
-from paper2podcast.llm.base import LLMRequest, Message  # noqa: E402
+from papermap.config import LLMSettings  # noqa: E402
+from papermap.llm import LLMError  # noqa: E402
+from papermap.llm.anthropic_provider import AnthropicProvider  # noqa: E402
+from papermap.llm.base import LLMRequest, Message  # noqa: E402
 
 
 class _Stream:

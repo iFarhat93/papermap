@@ -20,7 +20,7 @@ R = TypeVar("R")
 
 # One system prompt for every stage keeps the request prefix identical across
 # stages, which lets prefix caching (Anthropic, vLLM, llama.cpp) reuse it.
-SYSTEM_PROMPT = """You are the writing engine of paper2podcast. It turns a scientific paper into a short, visual, narrated learning experience for one specific person.
+SYSTEM_PROMPT = """You are the writing engine of PaperMap. It turns a scientific paper into a short, visual, narrated learning experience for one specific person.
 
 Ground rules:
 - Use only information stated in the provided paper text. Never invent results, numbers, names, datasets, equations or claims. If something is not in the text, leave it out.

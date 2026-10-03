@@ -2,7 +2,7 @@
 
 A provider turns one :class:`LLMRequest` into one :class:`LLMResponse`.
 Caching, retries, JSON extraction/validation and logging live in
-:class:`paper2podcast.llm.client.LLMClient`, so providers stay tiny.
+:class:`papermap.llm.client.LLMClient`, so providers stay tiny.
 """
 
 from __future__ import annotations
@@ -106,7 +106,7 @@ class LLMProvider(ABC):
         return mode
 
     def check(self) -> str:
-        """Cheap connectivity check used by ``paper2podcast check``."""
+        """Cheap connectivity check used by ``papermap check``."""
         resp = self.complete(LLMRequest(messages=[Message("user", "Reply with the single word: ok")], max_tokens=200))
         return resp.text.strip()[:80]
 

@@ -3,7 +3,7 @@
   browser  no files; the page speaks with the Web Speech API (zero setup)
   none     no audio; captions auto-advance at reading speed
   openai   any OpenAI-compatible ``/audio/speech`` endpoint (OpenAI, Kokoro-FastAPI, ...)
-  edge     Microsoft Edge neural voices (``pip install "paper2podcast[edge-tts]"``)
+  edge     Microsoft Edge neural voices (``pip install "papermap[edge-tts]"``)
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class EdgeTTS(TTSProvider):
         try:
             import edge_tts  # noqa: F401
         except ImportError as e:
-            raise TTSError('the edge provider needs: pip install "paper2podcast[edge-tts]"') from e
+            raise TTSError('the edge provider needs: pip install "papermap[edge-tts]"') from e
 
     def synthesize(self, text: str, voice: str) -> bytes:
         import edge_tts

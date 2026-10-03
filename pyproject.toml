@@ -3,13 +3,13 @@ requires = ["hatchling>=1.21"]
 build-backend = "hatchling.build"
 
 [project]
-name = "paper2podcast"
+name = "papermap"
 version = "0.1.0"
 description = "Turn a scientific paper into an interactive, audience-adapted, podcast-style learning experience."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "paper2podcast contributors" }]
+authors = [{ name = "PaperMap contributors" }]
 keywords = ["papers", "llm", "podcast", "education", "knowledge-graph", "tts"]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -30,13 +30,13 @@ all = ["anthropic>=1.0", "edge-tts>=6.1"]
 dev = ["pytest>=8"]
 
 [project.scripts]
-paper2podcast = "paper2podcast.cli:main"
+papermap = "papermap.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/iFarhat93/papermap"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/paper2podcast"]
+packages = ["src/papermap"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -3,11 +3,11 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from paper2podcast.cache import Cache
-from paper2podcast.config import LLMSettings
-from paper2podcast.llm import LLMClient, LLMOutputError, create_provider
-from paper2podcast.llm.base import LLMProvider, LLMRequest, LLMResponse, TransientLLMError, inline_json_schema
-from paper2podcast.llm.jsonutil import extract_json
+from papermap.cache import Cache
+from papermap.config import LLMSettings
+from papermap.llm import LLMClient, LLMOutputError, create_provider
+from papermap.llm.base import LLMProvider, LLMRequest, LLMResponse, TransientLLMError, inline_json_schema
+from papermap.llm.jsonutil import extract_json
 
 
 class Out(BaseModel):

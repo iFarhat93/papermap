@@ -1,4 +1,4 @@
-from paper2podcast.grounding import find_quote, name_in_text, normalize, number_in_text, lower_text
+from papermap.grounding import find_quote, name_in_text, normalize, number_in_text, lower_text
 
 SOURCE = (
     "We propose a new simple network architecture, the Transformer, based solely on attention mecha-\n"

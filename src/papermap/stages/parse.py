@@ -81,7 +81,7 @@ def resolve_source(source: str, ctx: RunContext | None = None) -> Path:
         if cached.is_file():
             return cached
     try:
-        r = httpx.get(url, follow_redirects=True, timeout=60, headers={"User-Agent": "paper2podcast/0.1"})
+        r = httpx.get(url, follow_redirects=True, timeout=60, headers={"User-Agent": "papermap/0.1"})
         r.raise_for_status()
     except httpx.HTTPError as e:
         raise RuntimeError(f"could not download {url}: {e}") from e
@@ -93,7 +93,7 @@ def resolve_source(source: str, ctx: RunContext | None = None) -> Path:
     if ctx is None:
         import tempfile
 
-        out = Path(tempfile.gettempdir()) / f"p2p-{key}.pdf"
+        out = Path(tempfile.gettempdir()) / f"papermap-{key}.pdf"
         out.write_bytes(r.content)
         return out
     return ctx.cache.put_blob("downloads", key, "pdf", r.content)

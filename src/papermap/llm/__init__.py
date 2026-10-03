@@ -8,7 +8,7 @@ Built-in providers:
   mock                                        deterministic offline provider (tests/demo)
 
 Third-party backends can register themselves with :func:`register_provider`
-or through the ``paper2podcast.providers`` entry-point group.
+or through the ``papermap.providers`` entry-point group.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def create_provider(settings: LLMSettings) -> LLMProvider:
         from .openai_compat import OpenAICompatibleProvider
 
         return OpenAICompatibleProvider(settings, preset=name)
-    for ep in entry_points(group="paper2podcast.providers"):
+    for ep in entry_points(group="papermap.providers"):
         if ep.name == name:
             return ep.load()(settings)
     raise LLMError(f"unknown LLM provider {settings.provider!r}; choose one of: {', '.join(available_providers())}")

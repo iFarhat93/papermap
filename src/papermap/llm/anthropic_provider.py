@@ -1,4 +1,4 @@
-"""Claude via the official Anthropic SDK (``pip install "paper2podcast[anthropic]"``).
+"""Claude via the official Anthropic SDK (``pip install "papermap[anthropic]"``).
 
 Credentials resolve the SDK's usual way (ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN,
 or an ``ant auth login`` profile) unless ``llm.api_key_env`` names another variable.
@@ -25,7 +25,7 @@ class AnthropicProvider(LLMProvider):
         try:
             import anthropic
         except ImportError as e:  # pragma: no cover - depends on extras
-            raise LLMError('the anthropic provider needs the SDK: pip install "paper2podcast[anthropic]"') from e
+            raise LLMError('the anthropic provider needs the SDK: pip install "papermap[anthropic]"') from e
         self._sdk = anthropic
         kwargs: dict = {"max_retries": settings.max_retries, "timeout": settings.timeout}
         if settings.api_key_env:
