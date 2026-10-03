@@ -41,10 +41,6 @@ Optional flags: `--tts edge` adds real voice audio, and `--style duo` switches t
 
 Other providers (vLLM, llama.cpp, LM Studio, OpenAI-compatible and Anthropic APIs), voices, configuration and debugging are covered in [docs/GUIDE.md](docs/GUIDE.md). How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Author
-
-Built by Ibrahim ([@iFarhat93](https://github.com/iFarhat93)), an AI and robotics researcher working on Vision-Language-Action models and embodied AI. Ibrahim's own [listener profile](examples/profile.example.md) is included as an example.
-
 ## License
 
 MIT
