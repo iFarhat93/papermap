@@ -59,6 +59,14 @@ def test_pipeline_produces_the_artifact(generated):
     beats = [b for v in exp["views"].values() for s in v["sections"] for b in s["beats"]]
     assert all(b["source"] and b["source"]["page"] >= 1 for b in beats)
     assert any(b["source"]["rects"] for b in beats if b["quote"])
+    # end-of-paper quiz: at least 10 checked questions, each linked to a section and a beat
+    questions = exp["quiz"]["questions"]
+    assert len(questions) >= 10
+    beat_ids = {b["id"] for b in beats}
+    section_ids = {s["id"] for s in exp["sections"]}
+    for q in questions:
+        assert len(q["options"]) == 4 and 0 <= q["answer"] < 4
+        assert q["section_id"] in section_ids and q["beat_id"] in beat_ids
     html = (out / "index.html").read_text("utf-8")
     assert "{{DATA}}" not in html and "/*{{SCRIPT}}*/" not in html
     assert '<script id="papermap-data" type="application/json">{' in html
@@ -82,7 +90,7 @@ def test_rerun_is_cached_and_reproducible(generated, sample_pdf):
     before = (ctx.out_dir / "experience.json").read_text("utf-8")
     ctx2 = _ctx(tmp, sample_pdf)
     second = run_pipeline(ctx2)
-    assert set(second.cached) == {"parse", "understand", "profile", "explain", "review", "diagrams", "graph", "narrate"}
+    assert set(second.cached) == {"parse", "understand", "profile", "explain", "review", "diagrams", "graph", "quiz", "narrate"}
     assert (ctx2.out_dir / "experience.json").read_text("utf-8") == before
 
 

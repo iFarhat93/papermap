@@ -25,6 +25,7 @@ from ..models import (
     PaperMeta,
     ParsedPaper,
     QAInfo,
+    Quiz,
     SectionMeta,
     Understanding,
     View,
@@ -175,6 +176,9 @@ def attach_sources(exp: Experience, paper: ParsedPaper, out: Path) -> int:
                     if ref:
                         located += 1
                     b.source = ref or SourceRef(page=first_page.get(sv.section_id, 1))
+        for q in exp.quiz.questions:  # so a missed question can open the passage behind its answer
+            ref = locator.locate(q.quote, pages_of.get(q.section_id, [])) if q.quote else None
+            q.source = ref or SourceRef(page=first_page.get(q.section_id, 1))
     finally:
         locator.close()
     return located
@@ -189,6 +193,7 @@ def _run(ctx: RunContext, deps: dict) -> Experience:
     exp = assemble(paper, und, deps["profile"], deps["review"], deps["diagrams"], deps["graph"], narration, fingerprint)
     exp.paper.source_kind = paper.source_kind
     exp.paper.arxiv_id = paper.arxiv_id
+    exp.quiz = deps["quiz"].model_copy(deep=True) if deps.get("quiz") else Quiz()
 
     out = ctx.out_dir
     out.mkdir(parents=True, exist_ok=True)
@@ -222,7 +227,7 @@ def _run(ctx: RunContext, deps: dict) -> Experience:
 STAGE = Stage(
     name="render",
     version="1",
-    deps=("parse", "understand", "profile", "review", "diagrams", "graph", "narrate"),
+    deps=("parse", "understand", "profile", "review", "diagrams", "graph", "quiz", "narrate"),
     output=Experience,
     run=_run,
     uses_llm=False,

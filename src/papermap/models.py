@@ -577,6 +577,26 @@ class QAInfo(Model):
     suggested_questions: list[str] = Field(default_factory=list)
 
 
+class QuizQuestion(Model):
+    """One multiple-choice comprehension question with its answer key."""
+
+    id: str
+    section_id: str
+    question: str
+    options: list[str]
+    answer: int  # index into options
+    explanation: str
+    quote: str = ""  # verified sentence from the paper supporting the answer
+    kind: str = "concept"
+    difficulty: str = "medium"
+    beat_id: str | None = None  # the narration beat that covers it (for "review this")
+    source: SourceRef | None = None  # where the quote is in the PDF (filled by the render stage)
+
+
+class Quiz(Model):
+    questions: list[QuizQuestion] = Field(default_factory=list)
+
+
 class Experience(Model):
     """Everything the webpage needs, in one document."""
 
@@ -590,6 +610,7 @@ class Experience(Model):
     graph: KnowledgeGraph
     narration: NarrationInfo
     qa: QAInfo
+    quiz: Quiz = Field(default_factory=Quiz)
 
 
 SectionView.model_rebuild()

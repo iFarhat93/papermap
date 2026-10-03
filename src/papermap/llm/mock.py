@@ -189,6 +189,50 @@ class MockProvider(LLMProvider):
     def _task_review(self, prompt: str, context: str):
         return {"issues": [], "beats": []}
 
+    def _task_quiz(self, prompt: str, context: str):
+        n = int(re.search(r"Write (\d+) multiple-choice", prompt).group(1))
+        asked = set(re.findall(r"^- (.+)$", prompt.split("Already asked", 1)[1], re.M)) if "Already asked" in prompt else set()
+        wrong = [
+            "The paper reports no experiments for this part.",
+            "It relies only on hand-written rules.",
+            "The authors say the approach failed everywhere.",
+            "It is presented as unrelated to prior work.",
+        ]
+        questions = []
+        for i, s in enumerate(_sentences(_section_text(context))):
+            subject = " ".join(w.strip(".,;:") for w in s.split()[2:6])
+            question = f"What does the paper say about {subject}?"
+            if question in asked:
+                continue
+            questions.append({
+                "question": question, "correct": " ".join(s.split()[:18]), "distractors": wrong[i % 2 : i % 2 + 3],
+                "explanation": "The section states it directly.", "quote": s, "kind": "concept", "difficulty": "easy",
+            })
+            if len(questions) >= n:
+                break
+        return {"questions": questions}
+
+    def _task_quiz_check(self, prompt: str, context: str):
+        text = " ".join(_section_text(context).split()).lower()
+        answers = []
+        for block in re.split(r"\n\s*\n", prompt.split("\n\n", 1)[1]):
+            options = re.findall(r"^\s+([A-D]): (.+)$", block, re.M)
+            if options:
+                hits = [letter for letter, opt in options if " ".join(opt.split()).lower() in text]
+                answers.append(hits[0] if len(hits) == 1 else "none")
+        return {"answers": answers}
+
+    def _task_quiz_select(self, prompt: str, context: str):
+        k = int(re.search(r"Pick exactly (\d+)", prompt).group(1))
+        by_section: dict[str, list[str]] = {}
+        for cid, section in re.findall(r"^(c\d+) \[(.+?)\] ", prompt, re.M):
+            by_section.setdefault(section, []).append(cid)
+        keep, depth = [], 0  # round-robin over sections
+        while len(keep) < k and any(len(ids) > depth for ids in by_section.values()):
+            keep += [ids[depth] for ids in by_section.values() if len(ids) > depth][: k - len(keep)]
+            depth += 1
+        return {"keep": keep}
+
     def _task_questions(self, prompt: str, context: str):
         return {"questions": [
             "What problem does this paper solve?",

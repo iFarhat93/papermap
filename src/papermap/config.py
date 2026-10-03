@@ -81,6 +81,9 @@ class PipelineSettings(Section):
     paper_figures: bool = True
     # Second pass that checks the narration against the paper and fixes errors before diagrams are built.
     review: bool = True
+    # End-of-paper comprehension quiz (multiple choice, answer keys verified against the paper).
+    quiz: bool = True
+    quiz_questions: int = 10  # at least 10 are kept when the paper allows it
 
 
 class Config(Section):

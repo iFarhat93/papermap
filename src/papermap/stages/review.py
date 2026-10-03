@@ -93,7 +93,7 @@ def _run(ctx: RunContext, deps: dict) -> Explanations:
             )
         except LLMOutputError as e:
             log.warning("%s/%s: review skipped (%s)", view, sv.section_id, "; ".join(e.problems[:2]))
-            return []
+            return [], set()
         by_id = {b.id: b for b in sv.beats}
         short = {b.id.rsplit(".", 1)[-1]: b for b in sv.beats}  # tolerate "b2"
         fixed: set[str] = set()
@@ -116,12 +116,14 @@ def _run(ctx: RunContext, deps: dict) -> Explanations:
             bid = beat.id if beat else it.beat
             issues.append(ReviewIssue(view=view, section_id=sv.section_id, beat=bid, problem=it.problem.strip(),
                                       fix=it.fix.strip(), applied=bid in fixed))
-        return issues
+        return issues, fixed
 
-    all_issues = [i for batch in ctx.parallel(review, jobs) for i in batch]
+    results = ctx.parallel(review, jobs)
+    all_issues = [i for batch, _ in results for i in batch]
     out.review_issues = all_issues
-    applied = sum(1 for i in all_issues if i.applied)
-    log.info("%d issues found in %d sections, %d corrections applied", len(all_issues), len(jobs), applied)
+    # count corrected beats, not issues: the model sometimes files an issue under a neighbouring beat id
+    corrected = sum(len(fixed) for _, fixed in results)
+    log.info("%d issues found in %d sections, %d beats corrected", len(all_issues), len(jobs), corrected)
     for i in all_issues[:12]:
         log.debug("  %s %s: %s -> %s", i.beat, "fixed" if i.applied else "noted", i.problem[:120], i.fix[:80])
     return out

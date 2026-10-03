@@ -99,6 +99,8 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
         pipe["use_latex"] = False
     if getattr(args, "no_review", False):
         pipe["review"] = False
+    if getattr(args, "no_quiz", False):
+        pipe["quiz"] = False
     if pipe:
         o["pipeline"] = pipe
     return o
@@ -122,6 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--concurrency", type=int, help="parallel LLM calls (default 4)")
     run.add_argument("--no-latex", action="store_true", help="use the PDF text even when the arXiv LaTeX source exists")
     run.add_argument("--no-review", action="store_true", help="skip the fact-checking pass over the narration")
+    run.add_argument("--no-quiz", action="store_true", help="skip the end-of-paper comprehension quiz")
     run.add_argument("--until", metavar="STAGE", help="stop after this stage")
     run.add_argument("--force", metavar="STAGE", action="append", default=[], help="recompute a stage even if cached (repeatable)")
     run.add_argument("--no-cache", action="store_true", help="ignore all caches (fresh LLM calls)")

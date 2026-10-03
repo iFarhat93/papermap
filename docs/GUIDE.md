@@ -11,7 +11,7 @@ papermap paper.pdf -p profile.md --provider vllm --model Qwen/Qwen2.5-32B-Instru
 papermap paper.pdf -p profile.md --provider mock      # offline and deterministic, for trying the UI
 ```
 
-`index.html` also works when opened directly from disk or hosted as a static site. Only Q&A needs `papermap serve`, because answering questions requires a model.
+`index.html` also works when opened directly from disk or hosted as a static site. Only asking questions needs `papermap serve`, because answering them requires a model.
 
 ## The profile
 
@@ -23,6 +23,14 @@ papermap paper.pdf -p profile.md --provider mock      # offline and deterministi
 - **Tables** are read as rows and columns (from LaTeX, or from ruled tables in the PDF) and given to the model as tables.
 - **Paper figures** appear next to the generated diagrams: sections that discuss a figure get a "Figure N" toggle on the stage.
 - **Source viewer.** The **Paper** tab shows the PDF page behind each beat, with the quoted passage highlighted. "View in paper" on a quote opens it.
+
+## Reading, asking and the quiz
+
+The page has three modes:
+
+- **Read**: the guided walkthrough, in the high-level or deep-dive view, plus the knowledge graph.
+- **Ask**: open at any time. Ask while reading (the Ask tab next to the narration follows what is on screen) or in the full Ask view. Answers are grounded in the paper and link back to sections. This needs `papermap serve`.
+- **Quiz**: unlocks once every section has been read through to its last beat. It has at least 10 multiple-choice questions (`quiz_questions`), spread across the sections, written for the profile and chosen so that no two test the same idea. After the last question you get a score and a per-section list of what to review. Each missed question shows your answer, the correct one, an explanation and the supporting sentence from the paper. It also has a button that jumps to the narration beat covering it, and one that opens the PDF page with that sentence highlighted. Results and the best score stay in the browser, and retakes reshuffle the options. Turn the quiz off with `--no-quiz` or `quiz = false`.
 
 ## Models
 
@@ -94,6 +102,8 @@ include_appendix = false
 use_latex = true             # read the arXiv LaTeX source when available
 paper_figures = true         # show the paper's own figures
 review = true                # fact-check the narration before diagrams and audio
+quiz = true                  # end-of-paper comprehension quiz
+quiz_questions = 10          # how many questions to keep (at least 10)
 ```
 
 ## Output
@@ -109,16 +119,16 @@ papermap-out/<paper>-<profile>/
   logs/run.log          full DEBUG log of the run
 ```
 
-The page supports deep links (`index.html#view=deep&s=3&b=1`), keyboard shortcuts (press `?`), light and dark themes, and phone-sized screens.
+The page supports deep links (`index.html#view=deep&s=3&b=1`, `#mode=ask`, `#mode=quiz`), keyboard shortcuts (press `?`), light and dark themes, and phone-sized screens.
 
 ## How it works
 
 ```
-Paper ─► parse ─► understand ─► profile ─► explain ─► diagrams ─► graph ─► narrate ─► render ─► webpage
-          PDF      chapters,     audience   beats per    typed       knowledge  audio       experience.json
-          layout   key points,   model      section and  specs +     graph      clips       + index.html
-                   verified                 view         per-beat
-                   quotes                                focus
+Paper ─► parse ─► understand ─► profile ─► explain ─► review ─► diagrams ─► graph ─► quiz ─► narrate ─► render ─► webpage
+          PDF or   chapters,     audience   beats per   fact-     typed       knowledge  checked  audio      experience.json
+          LaTeX    key points,   model      section     check     specs +     graph      multiple clips      + index.html
+                   verified                 and view    and fix   per-beat               choice
+                   quotes                                         focus
 ```
 
 Each stage is a pure function from its dependencies' outputs to a validated pydantic model. Stage outputs and individual LLM calls are cached by content hash. Re-running the same command is instant. If a run fails partway, re-running resumes from the last completed model call. Changing only the profile reuses parsing, understanding and the graph. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the components, interfaces and extension points.
@@ -134,6 +144,7 @@ These checks run in code and do not rely on the model following instructions:
 
 - **Attribution:** a number in a chart or table must sit next to its label in the paper (same table row or column, or nearby in the text). A correct number under the wrong method is rejected.
 - **Fact-checking pass:** after the narration is written, a second model pass checks each section against the paper for unsupported claims, misattributed numbers and repetition, and applies fixes (a fix that introduces a number not in the paper is ignored). Skip it with `--no-review` or `review = false`.
+- **Quiz answer keys:** a separate pass answers every question from the section text alone, with the options shuffled. If its answer differs from the key, the question is dropped. Numbers in correct answers and explanations must appear in the paper, and the supporting quote must be verbatim.
 
 Grounding reduces errors but cannot eliminate them. A model can still misread a correct passage. Equations are reconstructed from PDF text extraction, which can be imperfect.
 
@@ -146,6 +157,7 @@ papermap paper.pdf -p profile.md --force diagrams   # recompute one stage (cache
 papermap paper.pdf -p profile.md --no-cache         # completely fresh run
 papermap paper.pdf -p profile.md --no-latex         # ignore the arXiv LaTeX source, use the PDF text
 papermap paper.pdf -p profile.md --no-review        # skip the fact-checking pass
+papermap paper.pdf -p profile.md --no-quiz          # skip the comprehension quiz
 papermap stages                                     # list stages and dependencies
 papermap render papermap-out/<folder>               # rebuild a page with the current design (no model calls)
 ```
@@ -159,10 +171,10 @@ pip install -e ".[dev,anthropic]"
 pytest
 ```
 
-The tests build a PDF, run the full pipeline with the `mock` provider, and check the artifact, verbatim quotes, caching, reproducibility, invalidation and Q&A.
+The tests build a PDF, run the full pipeline with the `mock` provider, and check the artifact, verbatim quotes, caching, reproducibility, invalidation, Q&A and the quiz's answer-key checks.
 
 ## Limitations and roadmap
 
-- Input is PDF only, with text-based PDFs (scanned PDFs need OCR first). HTML papers and LaTeX sources are planned.
+- Input is a PDF or an arXiv link. PDFs must contain text (scanned PDFs need OCR first). HTML papers are planned.
 - Q&A answers are not streamed yet.
 - There are no production deployment assumptions. The server is local and single-user, with no authentication.

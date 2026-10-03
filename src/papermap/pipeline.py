@@ -1,6 +1,6 @@
 """Pipeline orchestration:
 
-Paper -> parse -> understand -> profile -> explain -> review -> diagrams -> graph -> narrate -> render
+Paper -> parse -> understand -> profile -> explain -> review -> diagrams -> graph -> quiz -> narrate -> render
 
 Every cacheable stage is keyed by (stage name, version, source hash of its
 module, keys of its dependencies, relevant config). A cached stage is loaded
@@ -22,7 +22,7 @@ from typing import Any, Iterable
 from .config import stable_hash
 from .log import stage_logger
 from .models import SCHEMA_VERSION, Experience
-from .stages import diagrams, explain, graph, narrate, parse, profile, render, review, understand
+from .stages import diagrams, explain, graph, narrate, parse, profile, quiz, render, review, understand
 from .stages.base import RunContext, Stage
 
 STAGES: list[Stage] = [
@@ -33,6 +33,7 @@ STAGES: list[Stage] = [
     review.STAGE,
     diagrams.STAGE,
     graph.STAGE,
+    quiz.STAGE,
     narrate.STAGE,
     render.STAGE,
 ]

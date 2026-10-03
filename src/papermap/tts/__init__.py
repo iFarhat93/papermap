@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from abc import ABC, abstractmethod
 
 import httpx
@@ -132,13 +133,21 @@ class EdgeTTS(TTSProvider):
                     out.extend(chunk["data"])
             return bytes(out)
 
-        try:
-            data = asyncio.run(go())
-        except Exception as e:  # noqa: BLE001 - network/service errors surface as TTSError
-            raise TTSError(f"edge-tts failed: {e}") from e
-        if not data:
-            raise TTSError("edge-tts returned no audio")
-        return data
+        # the free Edge service occasionally drops a request ("No audio was received"); retry those
+        for attempt in range(4):
+            try:
+                data = asyncio.run(go())
+            except Exception as e:  # noqa: BLE001 - network/service errors surface as TTSError
+                if attempt == 3:
+                    raise TTSError(f"edge-tts failed: {e}") from e
+                time.sleep(2 * 2**attempt)
+                continue
+            if data:
+                return data
+            if attempt == 3:
+                raise TTSError("edge-tts returned no audio")
+            time.sleep(2 * 2**attempt)
+        raise TTSError("unreachable")  # pragma: no cover
 
 
 def create_tts(settings: TTSSettings) -> TTSProvider | None:

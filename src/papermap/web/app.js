@@ -15,6 +15,8 @@
   };
   const SECTIONS = DATA.sections;
   const SEC_INDEX = Object.fromEntries(SECTIONS.map((s, i) => [s.id, i]));
+  const QUIZ = (DATA.quiz && DATA.quiz.questions) || [];
+  const LETTERS = 'ABCD';
   const NODES = DATA.graph.nodes || [];
   const EDGES = DATA.graph.edges || [];
   const NODE_BY_ID = Object.fromEntries(NODES.map((n) => [n.id, n]));
@@ -157,8 +159,11 @@
     playing: false,
     mode: 'read',
     visited: new Set(store.get('visited', [])),
+    read: new Set(store.get('read', [])), // sections read through to their last beat
     completed: store.get('completed', false),
-    forceUnlock: store.get('forceUnlock', false),
+    quizAnnounced: store.get('quizAnnounced', false),
+    quiz: loadQuiz(),
+    reviewing: null, // the quiz question (or section) being revisited from the results
     voiceOn: store.get('voiceOn', true),
     rate: store.get('rate', DATA.narration.rate || 1),
     autoAdvance: store.get('autoAdvance', true),
@@ -178,12 +183,14 @@
     return { ...sv, beats: [{ id: `${view}.${meta.id}.b1`, speaker: 'narrator', narration: meta.summary || meta.title, subtitle: meta.title, focus: [], refs: [meta.id] }] };
   };
   const currentBeat = () => sectionView().beats[state.bIdx];
-  const unlocked = () => state.completed || state.forceUnlock || state.visited.size >= SECTIONS.length;
+  const allRead = () => SECTIONS.every((x) => state.read.has(x.id));
+  const quizUnlocked = () => allRead(); // no way around it: the quiz is for after the reading
 
   function persist() {
     store.set('view', state.view);
     store.set('sIdx', state.sIdx);
     store.set('visited', [...state.visited]);
+    store.set('read', [...state.read]);
     store.set('completed', state.completed);
     // shareable position: #view=deep&s=3&b=1
     try { history.replaceState(null, '', `#view=${state.view}&s=${state.sIdx}&b=${state.bIdx}`); } catch { /* sandboxed */ }
@@ -195,9 +202,9 @@
     if (['high', 'deep', 'graph'].includes(v)) { state.view = v; if (v !== 'graph') state.readView = v; }
     if (p.has('s')) state.sIdx = clamp(parseInt(p.get('s'), 10) || 0, 0, SECTIONS.length - 1);
     if (p.has('b')) state.bIdx = parseInt(p.get('b'), 10) || 0;
-    if (p.get('mode') === 'qa') state.mode = 'qa';
+    if (['qa', 'ask'].includes(p.get('mode'))) state.mode = 'ask';
+    if (p.get('mode') === 'quiz' && QUIZ.length) state.mode = 'quiz';
     if (p.has('node') && NODE_BY_ID[p.get('node')]) state.selectedNode = p.get('node');
-    if (p.get('unlock') === '1') state.forceUnlock = true;
     if (['narration', 'paper', 'ask'].includes(p.get('tab'))) state.sideTab = p.get('tab');
     if (p.get('stage')) state.initialStage = p.get('stage');
     if (p.get('theme') === 'dark' || p.get('theme') === 'light') applyTheme(p.get('theme'));
@@ -213,11 +220,14 @@
       ['high', 'deep', 'graph'].map((v) => (ui.viewBtns[v] = h('button', { 'aria-pressed': 'false', title: `${VIEW_LABEL[v]} (${['high', 'deep', 'graph'].indexOf(v) + 1})`, onclick: () => setView(v) },
         h('span', { class: 'long' }, VIEW_LABEL[v]), h('span', { class: 'short' }, { high: 'High', deep: 'Deep', graph: 'Graph' }[v])))));
     ui.modeBtns = {
-      read: h('button', { 'aria-pressed': 'true', onclick: () => setMode('read') }, 'Read'),
-      qa: h('button', { 'aria-pressed': 'false', onclick: () => setMode('qa'), title: 'Q&A (q)' }, (ui.qaLock = h('span', { class: 'lockwrap' }, icon('lock'))), 'Q&A'),
+      read: h('button', { 'aria-pressed': 'true', onclick: () => setMode('read'), title: 'Guided reading' }, 'Read'),
+      ask: h('button', { 'aria-pressed': 'false', onclick: () => setMode('ask'), title: 'Ask about the paper (a)' }, 'Ask'),
     };
-    ui.qaLock.firstChild.classList.add('lock');
-    const modeSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Mode' }, ui.modeBtns.read, ui.modeBtns.qa);
+    if (QUIZ.length) {
+      ui.modeBtns.quiz = h('button', { 'aria-pressed': 'false', onclick: () => setMode('quiz') }, (ui.quizLock = h('span', { class: 'lockwrap' }, icon('lock'))), 'Quiz');
+      ui.quizLock.firstChild.classList.add('lock');
+    }
+    const modeSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Mode' }, Object.values(ui.modeBtns));
     ui.themeBtn = h('button', { class: 'icon-btn', 'aria-label': 'Toggle dark mode', title: 'Theme', onclick: toggleTheme });
     ui.settingsBtn = h('button', { class: 'icon-btn', 'aria-label': 'Narration settings', title: 'Narration settings', onclick: toggleSettings }, icon('sliders'));
     ui.helpBtn = h('button', { class: 'icon-btn', 'aria-label': 'Keyboard shortcuts', title: 'Shortcuts (?)', onclick: showHelp }, icon('help'));
@@ -241,7 +251,8 @@
     buildRail();
     buildReadView();
     buildGraphView();
-    buildQAView();
+    buildAskView();
+    buildQuizView();
     buildSide();
     applyTheme(store.get('theme', null));
   }
@@ -257,6 +268,13 @@
       ui.secBtns.push(btn);
       list.append(h('li', {}, btn));
     });
+    if (QUIZ.length) {
+      ui.quizBadge = h('span', { class: 'sec-num' });
+      ui.quizMeta = h('div', { class: 'sec-meta' });
+      ui.quizEntry = h('button', { class: 'sec-btn quiz-entry', onclick: () => { ui.rail.classList.remove('open'); setMode('quiz'); } },
+        ui.quizBadge, h('span', {}, h('div', { class: 'sec-title' }, 'Quiz'), ui.quizMeta));
+      list.append(h('li', { class: 'quiz-li' }, ui.quizEntry));
+    }
     ui.progressText = h('span', {});
     ui.progressFill = h('div', { class: 'bar-fill' });
     const p = DATA.profile;
@@ -272,10 +290,20 @@
     ui.secBtns.forEach((b, i) => {
       b.setAttribute('aria-current', i === state.sIdx && state.mode === 'read' && state.view !== 'graph' ? 'true' : 'false');
       b.classList.toggle('visited', state.visited.has(SECTIONS[i].id));
+      b.classList.toggle('read', state.read.has(SECTIONS[i].id));
     });
-    const n = SECTIONS.filter((x) => state.visited.has(x.id)).length;
-    ui.progressText.textContent = state.completed ? 'Finished — Q&A unlocked' : `${n} of ${SECTIONS.length} sections explored`;
-    ui.progressFill.style.width = `${(state.completed ? 1 : n / SECTIONS.length) * 100}%`;
+    const n = SECTIONS.filter((x) => state.read.has(x.id)).length;
+    const last = state.quiz.last;
+    ui.progressText.textContent = n < SECTIONS.length ? `${n} of ${SECTIONS.length} sections read`
+      : !QUIZ.length ? 'Finished' : last ? `Finished · quiz ${last.correct}/${last.total}` : 'Finished · quiz unlocked';
+    ui.progressFill.style.width = `${(n / SECTIONS.length) * 100}%`;
+    if (ui.quizEntry) {
+      const open = quizUnlocked();
+      ui.quizEntry.setAttribute('aria-current', state.mode === 'quiz' ? 'true' : 'false');
+      ui.quizEntry.classList.toggle('visited', open);
+      ui.quizBadge.replaceChildren(open ? (last ? '✓' : '?') : icon('lock'));
+      ui.quizMeta.textContent = !open ? `${QUIZ.length} questions · after reading` : last ? `Last score ${last.correct}/${last.total}` : `${QUIZ.length} questions · ready`;
+    }
   }
 
   // ------------------------------------------------------------ read view
@@ -284,6 +312,7 @@
     ui.stageTitle = h('h1', { class: 'stage-title' });
     ui.askDiagramBtn = h('button', { class: 'chip-btn', onclick: () => openAsk(readContext(true)) }, icon('chat'), h('span', { class: 'lbl' }, 'Ask about this'));
     ui.toGraphBtn = h('button', { class: 'chip-btn', onclick: () => setView('graph'), title: 'See these concepts in the knowledge graph' }, icon('graph'), h('span', { class: 'lbl' }, 'In the graph'));
+    ui.backToQuizBtn = h('button', { class: 'chip-btn accent', onclick: () => setMode('quiz'), title: 'Back to your quiz results' }, '← Quiz results');
     ui.stageBody = h('div', { class: 'stage-body' });
     ui.stageCaption = h('div', { class: 'stage-caption' });
     ui.speaker = h('span', { class: 'speaker' });
@@ -291,7 +320,7 @@
     ui.quote = h('blockquote', { class: 'quote' });
     ui.modeChips = h('div', { class: 'seg mode-chips', role: 'group', 'aria-label': 'What the stage shows' });
     ui.readView = h('div', { class: 'stage-wrap' },
-      h('div', { class: 'stage-head' }, h('div', { class: 'titles' }, ui.kicker, ui.stageTitle), h('div', { class: 'stage-tools' }, ui.askDiagramBtn, ui.toGraphBtn)),
+      h('div', { class: 'stage-head' }, h('div', { class: 'titles' }, ui.kicker, ui.stageTitle), h('div', { class: 'stage-tools' }, ui.backToQuizBtn, ui.askDiagramBtn, ui.toGraphBtn)),
       (ui.stage = h('div', { class: 'stage' }, ui.modeChips, ui.stageBody, ui.stageCaption)),
       h('div', { class: 'caption', 'aria-live': 'polite' }, h('div', { class: 'subtitle-row' }, ui.speaker, ui.subtitle), ui.quote));
     ui.center.append(ui.readView);
@@ -1122,12 +1151,13 @@
     syncPaperToBeat(flash);
   }
 
-  function openPageViewer() {
+  function openPageViewer(start = paperView.page, rects = paperView.rects) {
     if (!PAGES.length) return;
-    let page = paperView.page;
+    start = clamp(start, 1, PAGES.length);
+    let page = start;
     const view = h('div', { class: 'page-view large' }, h('img', { alt: 'Paper page' }), h('div', { class: 'page-hl-layer' }));
     const label = h('span', { class: 'page-label' });
-    const paint = () => { paintPage(view, page, page === paperView.page ? paperView.rects : []); label.textContent = `Page ${page} of ${PAGES.length}`; };
+    const paint = () => { paintPage(view, page, page === start ? rects : []); label.textContent = `Page ${page} of ${PAGES.length}`; };
     let close;
     const dlg = h('div', { class: 'dialog page-dialog' },
       h('div', { class: 'paper-nav' },
@@ -1139,6 +1169,12 @@
       h('div', { class: 'page-scroll' }, view));
     close = showOverlay(dlg);
     paint();
+    if (rects && rects.length) { // bring the highlighted passage into view once the page image is laid out
+      const scroller = dlg.querySelector('.page-scroll');
+      const center = () => { scroller.scrollTop = Math.max(0, rects[0][1] * view.clientHeight - scroller.clientHeight / 3); };
+      const img = view.querySelector('img');
+      if (img.complete) requestAnimationFrame(center); else img.addEventListener('load', center, { once: true });
+    }
   }
 
   function openImageViewer(src, caption) {
@@ -1358,6 +1394,7 @@
     if (!state.playing) return;
     const sv = sectionView();
     if (state.bIdx + 1 < sv.beats.length) { goTo(state.sIdx, state.bIdx + 1, { auto: true }); return; }
+    markRead(SECTIONS[state.sIdx].id);
     if (state.sIdx + 1 < SECTIONS.length) {
       if (!state.autoAdvance) { pause(); return; }
       goTo(state.sIdx + 1, 0, { auto: true });
@@ -1382,6 +1419,8 @@
 
   function goTo(sIdx, bIdx, { auto = false } = {}) {
     const changed = sIdx !== state.sIdx;
+    // leaving a section from its last beat means it was read through
+    if (changed && state.bIdx >= sectionView().beats.length - 1) markRead(SECTIONS[state.sIdx].id);
     state.sIdx = sIdx;
     state.bIdx = clamp(bIdx, 0, sectionView().beats.length - 1);
     state.visited.add(SECTIONS[sIdx].id);
@@ -1397,7 +1436,6 @@
       else narrator.play(currentBeat(), onBeatEnd);
     }
     updateRail();
-    if (state.visited.size >= SECTIONS.length) refreshLock();
     persist();
   }
 
@@ -1408,9 +1446,10 @@
     narrator.stop();
     updatePlayBtn();
     persist();
+    markRead(SECTIONS[state.sIdx].id); // may unlock (and announce) the quiz
     updateRail();
     refreshLock();
-    if (first) showCompletion();
+    if (QUIZ.length) { if (!allRead()) showUnread(); } else if (first) showCompletion();
   }
 
   function cycleSpeed() {
@@ -1545,7 +1584,8 @@
       state.qaInfo = j;
     } catch { state.qaAvailable = false; }
     ui.askPane.refresh();
-    if (state.mode === 'qa') renderQA();
+    if (state.mode === 'ask') renderAsk();
+    else if (state.mode === 'quiz' && state.quiz.phase === 'results') renderQuiz();
   }
 
   async function sendQuestion(question, ctx, history, container) {
@@ -1612,24 +1652,14 @@
     goTo(i, 0);
   }
 
-  function buildQAView() {
+  function buildAskView() {
     ui.qaView = h('div', { class: 'qa' });
     ui.qaMsgs = h('div', { class: 'msgs', 'aria-live': 'polite' });
     ui.center.append(ui.qaView);
   }
 
-  function renderQA() {
+  function renderAsk() {
     ui.qaView.replaceChildren();
-    if (!unlocked()) {
-      const n = SECTIONS.filter((x) => state.visited.has(x.id)).length;
-      ui.qaView.append(h('div', { class: 'lockscreen' },
-        h('div', { class: 'big-lock' }, icon('lock')),
-        h('h2', {}, 'Q&A opens after the paper'),
-        h('p', {}, `Finish the guided read first — it makes the questions better. You have explored ${n} of ${SECTIONS.length} sections.`),
-        h('button', { class: 'btn', onclick: () => { setMode('read'); play(); } }, icon('play'), 'Continue reading'),
-        h('div', {}, h('button', { class: 'linklike', onclick: () => { state.forceUnlock = true; store.set('forceUnlock', true); refreshLock(); renderQA(); } }, 'Unlock anyway'))));
-      return;
-    }
     const ta = h('textarea', { rows: 1, placeholder: 'Ask anything about the paper, its methods, results or related work…', 'aria-label': 'Your question' });
     const form = h('form', { class: 'ask-form' }, ta, h('button', { class: 'btn' }, icon('send'), 'Ask'));
     autoGrow(ta);
@@ -1643,7 +1673,7 @@
     const suggest = h('div', { class: 'suggest' }, (DATA.qa.suggested_questions || []).map((q) => h('button', { onclick: () => submit(q) }, q)));
     ui.qaView.append(...[
       h('h2', {}, 'Ask the paper'),
-      h('p', { class: 'lede' }, 'Answers stay grounded in the paper and its knowledge graph, with links back to the sections they come from.'),
+      h('p', { class: 'lede' }, 'Ask anything, any time: while you read or after. Answers stay grounded in the paper and its knowledge graph, with links back to the sections they come from.'),
       state.qaAvailable ? null : h('div', { class: 'offline' }, offlineMessage()),
       ui.qaMsgs,
       state.chat.length || !state.qaAvailable ? null : suggest,
@@ -1652,8 +1682,306 @@
   }
 
   function refreshLock() {
-    ui.qaLock.style.display = unlocked() ? 'none' : '';
-    ui.modeBtns.qa.title = unlocked() ? 'Q&A (q)' : 'Q&A unlocks after you finish the paper';
+    if (!ui.quizLock) return;
+    const open = quizUnlocked();
+    ui.quizLock.style.display = open ? 'none' : '';
+    ui.modeBtns.quiz.title = open ? 'Quiz (q)' : 'The quiz unlocks when you finish reading';
+  }
+
+  // ---------------------------------------------------------------- quiz
+  function loadQuiz() {
+    const saved = store.get('quiz', null) || {};
+    const known = (o) => (o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).filter(([k]) => QUIZ.some((q) => q.id === k))) : {});
+    return {
+      phase: ['intro', 'question', 'results'].includes(saved.phase) ? saved.phase : 'intro',
+      idx: clamp(saved.idx || 0, 0, Math.max(0, QUIZ.length - 1)),
+      answers: known(saved.answers), // question id -> chosen option (index into q.options)
+      order: known(saved.order), // question id -> display order of the options (retakes are reshuffled)
+      attempt: saved.attempt || 0,
+      last: saved.last && saved.last.answers ? saved.last : null,
+      best: saved.best || null,
+      note: '',
+    };
+  }
+  function saveQuiz() {
+    const { note, ...keep } = state.quiz;
+    store.set('quiz', keep);
+  }
+
+  function markRead(id) {
+    if (!id || state.read.has(id)) return;
+    const before = allRead();
+    state.read.add(id);
+    store.set('read', [...state.read]);
+    updateRail();
+    if (!before && allRead()) onAllRead();
+  }
+  function onAllRead() {
+    refreshLock();
+    updateRail();
+    if (!QUIZ.length || state.quizAnnounced) return;
+    state.quizAnnounced = true;
+    store.set('quizAnnounced', true);
+    showCompletion();
+  }
+
+  const sectionLabel = (id) => {
+    const i = SEC_INDEX[id];
+    if (i == null) return '';
+    return i === 0 ? 'Overview' : `§${i} ${SECTIONS[i].title}`;
+  };
+
+  function shuffled(n) {
+    const a = [...Array(n).keys()];
+    for (let i = n - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function startQuiz() {
+    const z = state.quiz;
+    if (z.last || Object.keys(z.answers).length) z.attempt += 1;
+    z.answers = {};
+    // first attempt: the generated order (correct answers already spread over A-D); retakes: reshuffled
+    z.order = z.attempt ? Object.fromEntries(QUIZ.map((q) => [q.id, shuffled(q.options.length)])) : {};
+    z.idx = 0;
+    z.phase = 'question';
+    z.note = '';
+    saveQuiz();
+    renderQuiz();
+  }
+
+  function quizGo(d) {
+    const z = state.quiz;
+    const i = clamp(z.idx + d, 0, QUIZ.length - 1);
+    if (i === z.idx) return;
+    z.idx = i;
+    z.note = '';
+    saveQuiz();
+    renderQuiz();
+  }
+
+  function chooseOption(pos) {
+    const z = state.quiz;
+    const q = QUIZ[z.idx];
+    const order = z.order[q.id] || q.options.map((_, i) => i);
+    if (pos < 0 || pos >= order.length) return;
+    z.answers[q.id] = order[pos];
+    z.note = '';
+    saveQuiz();
+    renderQuiz();
+  }
+
+  function submitQuiz() {
+    const z = state.quiz;
+    const open = QUIZ.filter((q) => z.answers[q.id] == null);
+    if (open.length) {
+      z.idx = QUIZ.indexOf(open[0]);
+      z.note = `Answer every question to see your score: ${open.length} left.`;
+      renderQuiz();
+      return;
+    }
+    const correct = QUIZ.filter((q) => z.answers[q.id] === q.answer).length;
+    z.last = { correct, total: QUIZ.length, answers: { ...z.answers }, at: Date.now() };
+    if (!z.best || correct > z.best.correct) z.best = { correct, total: QUIZ.length };
+    z.phase = 'results';
+    saveQuiz();
+    renderQuiz();
+    updateRail();
+  }
+
+  // like append(), but skips null/false children (conditional parts of a screen)
+  const fill = (root, ...kids) => root.append(...kids.flat().filter((k) => k != null && k !== false));
+
+  function buildQuizView() {
+    ui.quizView = h('div', { class: 'quiz' });
+    ui.center.append(ui.quizView);
+  }
+
+  function renderQuiz() {
+    const z = state.quiz;
+    const inner = h('div', { class: 'quiz-inner' });
+    let key;
+    if (!quizUnlocked()) { key = 'locked'; renderQuizLocked(inner); }
+    else if (z.phase === 'question') { key = `q${z.idx}`; renderQuizQuestion(inner); }
+    else if (z.phase === 'results' && z.last) { key = 'results'; renderQuizResults(inner); }
+    else { key = 'intro'; renderQuizIntro(inner); }
+    const keep = key === ui.quizKey ? ui.quizView.scrollTop : 0; // re-rendering the same screen keeps the scroll
+    ui.quizView.replaceChildren(inner);
+    ui.quizView.scrollTop = keep;
+    ui.quizKey = key;
+  }
+
+  function renderQuizLocked(root) {
+    const unread = SECTIONS.filter((x) => !state.read.has(x.id));
+    root.append(h('div', { class: 'lockscreen' },
+      h('div', { class: 'big-lock' }, icon('lock')),
+      h('h2', {}, 'The quiz opens when you finish the paper'),
+      h('p', {}, `${QUIZ.length} questions check what you understood, then point you to the part of the paper behind anything you missed. You have read ${SECTIONS.length - unread.length} of ${SECTIONS.length} sections.`),
+      unread.length ? h('div', { class: 'unread' },
+        h('div', { class: 'unread-label' }, 'Still to read'),
+        h('div', { class: 'sec-chips' }, unread.map((x) => h('button', { class: 'chip-btn', onclick: () => jumpToSection(x.id) }, sectionLabel(x.id))))) : null,
+      h('button', { class: 'btn', onclick: () => { if (unread[0]) jumpToSection(unread[0].id); play(); } }, icon('play'), 'Continue reading'),
+      h('div', {}, h('button', { class: 'linklike', onclick: () => setMode('ask') }, 'Questions while you read? Ask the paper any time'))));
+  }
+
+  function renderQuizIntro(root) {
+    const z = state.quiz;
+    const secs = [...new Set(QUIZ.map((q) => q.section_id))].sort((a, b) => (SEC_INDEX[a] ?? 0) - (SEC_INDEX[b] ?? 0));
+    fill(root,
+      h('div', { class: 'kicker' }, 'Check your understanding'),
+      h('h2', { class: 'quiz-title' }, `${QUIZ.length} questions on the paper`),
+      h('p', { class: 'lede' }, 'Multiple choice, one correct answer each, written from the paper and checked against it. Answer from memory. At the end you get your score and, for every question you missed, the right answer, why, and the part of the narration to revisit.'),
+      h('div', { class: 'quiz-covers' }, h('div', { class: 'unread-label' }, 'Covers'), h('div', { class: 'sec-chips' }, secs.map((id) => h('span', { class: 'ctx-chip' }, sectionLabel(id))))),
+      z.last ? h('p', { class: 'quiz-prev' }, `Last score: ${z.last.correct} of ${z.last.total}${z.best && z.best.correct > z.last.correct ? ` · best ${z.best.correct}` : ''}`) : null,
+      h('div', { class: 'quiz-actions' },
+        h('button', { class: 'btn', onclick: startQuiz }, icon('play'), z.last ? 'Retake the quiz' : 'Start the quiz'),
+        z.last ? h('button', { class: 'btn ghost', onclick: () => { z.phase = 'results'; saveQuiz(); renderQuiz(); } }, 'See your last results') : null));
+  }
+
+  function renderQuizQuestion(root) {
+    const z = state.quiz;
+    const q = QUIZ[z.idx];
+    const order = z.order[q.id] || q.options.map((_, i) => i);
+    const answered = QUIZ.filter((x) => z.answers[x.id] != null).length;
+    const chosen = z.answers[q.id];
+    const ready = answered === QUIZ.length || z.idx === QUIZ.length - 1;
+    fill(root,
+      h('div', { class: 'quiz-head' },
+        h('div', { class: 'kicker' }, `Question ${z.idx + 1} of ${QUIZ.length}`),
+        h('button', { class: 'linklike', onclick: () => setMode('read'), title: 'Your answers are kept' }, 'Back to reading')),
+      h('div', { class: 'quiz-dots', role: 'group', 'aria-label': 'Questions' }, QUIZ.map((x, i) => h('button', {
+        class: `quiz-dot${z.answers[x.id] != null ? ' done' : ''}${i === z.idx ? ' current' : ''}`,
+        'aria-label': `Question ${i + 1}${z.answers[x.id] != null ? ', answered' : ''}`,
+        'aria-current': i === z.idx ? 'step' : null,
+        onclick: () => { z.idx = i; z.note = ''; saveQuiz(); renderQuiz(); },
+      }, String(i + 1)))),
+      h('div', { class: 'quiz-card' },
+        h('div', { class: 'quiz-from' }, sectionLabel(q.section_id)),
+        h('h2', { class: 'quiz-q' }, richSpan(q.question)),
+        h('div', { class: 'quiz-opts', role: 'radiogroup', 'aria-label': 'Answers' }, order.map((oi, pos) => h('button', {
+          class: 'quiz-opt', role: 'radio', 'aria-checked': chosen === oi ? 'true' : 'false', onclick: () => chooseOption(pos),
+        }, h('span', { class: 'quiz-letter' }, LETTERS[pos]), richSpan(q.options[oi]))))),
+      z.note ? h('p', { class: 'quiz-note', role: 'status' }, z.note) : null,
+      h('div', { class: 'quiz-nav' },
+        h('button', { class: 'btn ghost', disabled: z.idx === 0, onclick: () => quizGo(-1) }, 'Back'),
+        h('span', { class: 'quiz-progress' }, `${answered} of ${QUIZ.length} answered`, h('span', { class: 'quiz-hint' }, ' · keys A–D, ← →')),
+        ready ? h('button', { class: 'btn', onclick: submitQuiz }, 'See my score')
+          : h('button', { class: 'btn', onclick: () => quizGo(1) }, chosen == null ? 'Skip' : 'Next')));
+  }
+
+  function verdict(pct) {
+    if (pct === 100) return 'A perfect score. You have this paper down.';
+    if (pct >= 80) return 'Strong understanding, with a detail or two worth revisiting.';
+    if (pct >= 60) return 'A good grasp of the main ideas, with a few gaps worth closing.';
+    if (pct >= 40) return 'A partial understanding: the sections below are worth a second pass.';
+    return 'Worth another pass. Start with the sections below.';
+  }
+
+  function scoreRing(pct) {
+    const r = 42;
+    const c = 2 * Math.PI * r;
+    const color = pct >= 80 ? 'var(--good)' : pct >= 50 ? 'var(--series-4)' : 'var(--critical)';
+    return h('div', { class: 'score-ring' },
+      s('svg', { viewBox: '0 0 100 100', 'aria-hidden': 'true' },
+        s('circle', { cx: 50, cy: 50, r, fill: 'none', stroke: 'var(--surface-3)', 'stroke-width': 9 }),
+        pct > 0 ? s('circle', { cx: 50, cy: 50, r, fill: 'none', stroke: color, 'stroke-width': 9, 'stroke-linecap': 'round', 'stroke-dasharray': `${(c * pct) / 100} ${c}`, transform: 'rotate(-90 50 50)' }) : null),
+      h('span', { class: 'score-pct' }, `${pct}%`));
+  }
+
+  function renderQuizResults(root) {
+    const z = state.quiz;
+    const { correct, total, answers } = z.last;
+    const pct = total ? Math.round((100 * correct) / total) : 0;
+    const missed = QUIZ.filter((q) => answers[q.id] !== q.answer);
+    const right = QUIZ.filter((q) => answers[q.id] === q.answer);
+    const bySec = new Map();
+    QUIZ.forEach((q) => {
+      const row = bySec.get(q.section_id) || { total: 0, right: 0 };
+      row.total += 1;
+      if (answers[q.id] === q.answer) row.right += 1;
+      bySec.set(q.section_id, row);
+    });
+    const rows = [...bySec.entries()].sort((a, b) => (SEC_INDEX[a[0]] ?? 0) - (SEC_INDEX[b[0]] ?? 0));
+    fill(root,
+      h('div', { class: 'quiz-score' }, scoreRing(pct),
+        h('div', {},
+          h('div', { class: 'kicker' }, 'Your score'),
+          h('h2', { class: 'quiz-title' }, `${correct} of ${total} correct`),
+          h('p', { class: 'lede' }, verdict(pct)),
+          z.best && z.attempt > 0 ? h('p', { class: 'quiz-prev' }, `Best so far: ${z.best.correct} of ${z.best.total}`) : null)),
+      h('section', { class: 'quiz-block' },
+        h('h3', {}, missed.length ? 'What to review' : 'By section'),
+        h('div', { class: 'quiz-secs' }, rows.map(([id, row]) => h('div', { class: `quiz-sec${row.right < row.total ? ' weak' : ''}` },
+          h('span', { class: 'qs-name', title: sectionLabel(id) }, sectionLabel(id)),
+          h('span', { class: 'qs-bar', 'aria-hidden': 'true' }, h('span', { style: `width:${(row.right / row.total) * 100}%` })),
+          h('span', { class: 'qs-score' }, `${row.right}/${row.total}`),
+          row.right < row.total
+            ? h('button', { class: 'chip-btn', onclick: () => reviewSection(id) }, 'Revisit')
+            : h('span', { class: 'qs-ok' }, 'All right'))))),
+      missed.length ? h('section', { class: 'quiz-block' }, h('h3', {}, `Questions you missed (${missed.length})`), missed.map((q) => quizItem(q, answers[q.id], false))) : null,
+      right.length ? h('details', { class: 'quiz-block quiz-right', open: missed.length ? null : true },
+        h('summary', {}, `Answered correctly (${right.length})`), right.map((q) => quizItem(q, answers[q.id], true))) : null,
+      h('div', { class: 'quiz-actions' },
+        h('button', { class: 'btn', onclick: startQuiz }, 'Retake the quiz'),
+        h('button', { class: 'btn ghost', onclick: () => setMode('read') }, 'Back to reading')));
+  }
+
+  function quizItem(q, given, ok) {
+    const page = q.source && q.source.page;
+    return h('article', { class: `quiz-item ${ok ? 'ok' : 'miss'}` },
+      h('h4', {}, richSpan(q.question)),
+      h('div', { class: 'quiz-answers' },
+        ok ? null : h('div', { class: 'ans-line given' }, h('span', { class: 'ans-tag' }, '✕ Your answer'), given == null ? h('em', {}, 'No answer') : richSpan(q.options[given])),
+        h('div', { class: 'ans-line correct' }, h('span', { class: 'ans-tag' }, ok ? '✓ Your answer' : '✓ Correct answer'), richSpan(q.options[q.answer]))),
+      h('p', { class: 'quiz-expl' }, richSpan(q.explanation)),
+      q.quote ? h('blockquote', { class: 'quote' }, richSpan(`“${q.quote}”`), h('cite', {}, `From the paper · ${sectionLabel(q.section_id)}${page ? ` · p. ${page}` : ''}`)) : null,
+      h('div', { class: 'quiz-links' },
+        h('button', { class: 'chip-btn', onclick: () => reviewQuestion(q) }, icon('play'), 'Review this part'),
+        page && PAGES.length ? h('button', { class: 'chip-btn', onclick: () => openPageViewer(page, q.source.rects || []) }, 'Show in the paper') : null,
+        !ok && state.qaAvailable ? h('button', { class: 'chip-btn', onclick: () => askAboutQuestion(q, given) }, icon('chat'), 'Ask why') : null));
+  }
+
+  function locateBeat(beatId) {
+    const m = /^(high|deep)\.(s\d+)\.b\d+$/.exec(beatId || '');
+    if (!m || SEC_INDEX[m[2]] == null || !DATA.views[m[1]]) return null;
+    const sIdx = SEC_INDEX[m[2]];
+    return { view: m[1], sIdx, bIdx: Math.max(0, sectionView(m[1], sIdx).beats.findIndex((b) => b.id === beatId)) };
+  }
+
+  // show one beat in the read view (no playback), e.g. to review a quiz question
+  function showBeat(view, sIdx, bIdx) {
+    if (state.playing) pause();
+    state.mode = 'read';
+    state.view = view;
+    state.readView = view;
+    state.sIdx = sIdx;
+    state.bIdx = clamp(bIdx, 0, sectionView().beats.length - 1);
+    state.visited.add(SECTIONS[sIdx].id);
+    state.askContext = null;
+    applyLayout();
+    renderSection();
+    renderBeat(true);
+    persist();
+  }
+
+  function reviewQuestion(q) {
+    const loc = locateBeat(q.beat_id) || { view: state.readView, sIdx: SEC_INDEX[q.section_id] ?? 0, bIdx: 0 };
+    state.reviewing = q.id;
+    showBeat(loc.view, loc.sIdx, loc.bIdx);
+  }
+  function reviewSection(id) {
+    state.reviewing = id;
+    showBeat(state.readView, SEC_INDEX[id] ?? 0, 0);
+  }
+
+  function askAboutQuestion(q, given) {
+    const mine = given == null ? 'I left it unanswered.' : `I answered “${q.options[given]}”.`;
+    sendQuestion(`About this quiz question: “${q.question}” ${mine} The correct answer is “${q.options[q.answer]}”. Why, according to the paper?`,
+      { section_id: q.section_id }, state.chat, ui.qaMsgs);
+    setMode('ask');
   }
 
   // --------------------------------------------------------- graph view
@@ -2029,20 +2357,26 @@
   }
 
   function setMode(mode, { silent = false } = {}) {
+    if (mode === 'quiz' && !QUIZ.length) mode = 'read';
     state.mode = mode;
-    if (mode === 'qa' && state.playing) pause();
+    if (mode !== 'read' && state.playing) pause();
+    if (mode === 'quiz') state.reviewing = null;
     applyLayout();
-    if (mode === 'qa') renderQA();
+    if (mode === 'ask') renderAsk();
+    else if (mode === 'quiz') renderQuiz();
     else if (!silent && state.view !== 'graph') { renderSection(); renderBeat(false); }
   }
 
   function applyLayout() {
-    const qa = state.mode === 'qa';
+    const qa = state.mode !== 'read'; // ask and quiz take the center column
     const g = state.view === 'graph' && !qa;
     ui.readView.style.display = !qa && !g ? '' : 'none';
     ui.graphView.style.display = g ? '' : 'none';
-    ui.qaView.style.display = qa ? '' : 'none';
+    ui.qaView.style.display = state.mode === 'ask' ? '' : 'none';
+    ui.quizView.style.display = state.mode === 'quiz' ? '' : 'none';
+    ui.backToQuizBtn.style.display = state.reviewing && state.quiz.last ? '' : 'none';
     ui.main.classList.toggle('qa-mode', qa);
+    app.dataset.mode = state.mode;
     Object.entries(ui.viewBtns).forEach(([k, b]) => b.setAttribute('aria-pressed', !qa && state.view === k ? 'true' : 'false'));
     Object.entries(ui.modeBtns).forEach(([k, b]) => b.setAttribute('aria-pressed', state.mode === k ? 'true' : 'false'));
     // side panel content
@@ -2113,7 +2447,8 @@
     return close;
   }
   function showHelp() {
-    const keys = [['Space', 'Play / pause'], ['← →', 'Previous / next beat'], ['[ ]', 'Previous / next section'], ['1 2 3', 'High-level · Deep dive · Graph'], ['q', 'Q&A mode'], ['m', 'Voice on / off'], ['Esc', 'Close panels']];
+    const keys = [['Space', 'Play / pause'], ['← →', 'Previous / next beat'], ['[ ]', 'Previous / next section'], ['1 2 3', 'High-level · Deep dive · Graph'], ['a', 'Ask the paper'],
+      ...(QUIZ.length ? [['q', 'Quiz (opens when you finish)'], ['A–D', 'Answer a quiz question']] : []), ['m', 'Voice on / off'], ['Esc', 'Close panels']];
     let close;
     const dlg = h('div', { class: 'dialog' }, h('h2', {}, 'Shortcuts'),
       h('div', { class: 'kbd-list' }, keys.map(([k, v]) => [h('span', {}, k.split(' ').map((x) => h('kbd', {}, x)).reduce((acc, el) => (acc.length ? [...acc, ' ', el] : [el]), [])), h('span', {}, v)])),
@@ -2124,11 +2459,27 @@
     let close;
     const dlg = h('div', { class: 'dialog' },
       h('h2', {}, 'That’s the paper.'),
-      h('p', {}, 'Q&A mode is now unlocked: ask about methods, results, related work or any diagram — answers link back to the sections they come from.'),
+      h('p', {}, QUIZ.length
+        ? `The quiz is unlocked: ${QUIZ.length} questions to check your understanding. You get a score and, for anything you miss, the explanation and the part of the paper to revisit.`
+        : 'Ask about methods, results, related work or any diagram — answers link back to the sections they come from.'),
       h('div', { class: 'row' },
-        h('button', { class: 'btn', onclick: () => { close(); setMode('qa'); } }, icon('chat'), 'Open Q&A'),
+        QUIZ.length
+          ? h('button', { class: 'btn', onclick: () => { close(); setMode('quiz'); } }, 'Take the quiz')
+          : h('button', { class: 'btn', onclick: () => { close(); setMode('ask'); } }, icon('chat'), 'Ask a question'),
         h('button', { class: 'btn ghost', onclick: () => { close(); setView('graph'); } }, 'Explore the graph'),
         h('button', { class: 'btn ghost', onclick: () => { close(); setView(state.readView === 'high' ? 'deep' : 'high'); goTo(0, 0); } }, state.readView === 'high' ? 'Watch the deep dive' : 'Watch the high-level')));
+    close = showOverlay(dlg);
+  }
+  function showUnread() {
+    const unread = SECTIONS.filter((x) => !state.read.has(x.id));
+    let close;
+    const dlg = h('div', { class: 'dialog' },
+      h('h2', {}, 'You reached the end.'),
+      h('p', {}, `${unread.length === 1 ? 'One section is' : `${unread.length} sections are`} still unread. Finish ${unread.length === 1 ? 'it' : 'them'} to unlock the quiz.`),
+      h('div', { class: 'sec-chips dialog-chips' }, unread.map((x) => h('button', { class: 'chip-btn', onclick: () => { close(); jumpToSection(x.id); } }, sectionLabel(x.id)))),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn', onclick: () => { close(); jumpToSection(unread[0].id); play(); } }, icon('play'), 'Read the next one'),
+        h('button', { class: 'btn ghost', onclick: () => close() }, 'Later')));
     close = showOverlay(dlg);
   }
 
@@ -2139,8 +2490,13 @@
       return;
     }
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (state.mode === 'quiz' && state.quiz.phase === 'question' && quizUnlocked() && !document.querySelector('.overlay')) {
+      const pos = ev.key.length === 1 ? 'abcd1234'.indexOf(ev.key.toLowerCase()) : -1;
+      if (pos >= 0) { ev.preventDefault(); chooseOption(pos % 4); return; }
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); quizGo(ev.key === 'ArrowRight' ? 1 : -1); return; }
+    }
     switch (ev.key) {
-      case ' ': ev.preventDefault(); togglePlay(); break;
+      case ' ': if (state.mode === 'read') { ev.preventDefault(); togglePlay(); } break;
       case 'ArrowRight': if (state.view !== 'graph' && state.mode === 'read') { ev.preventDefault(); step(1); } break;
       case 'ArrowLeft': if (state.view !== 'graph' && state.mode === 'read') { ev.preventDefault(); step(-1); } break;
       case ']': stepSection(1); break;
@@ -2148,7 +2504,8 @@
       case '1': setView('high'); break;
       case '2': setView('deep'); break;
       case '3': setView('graph'); break;
-      case 'q': setMode(state.mode === 'qa' ? 'read' : 'qa'); break;
+      case 'a': setMode(state.mode === 'ask' ? 'read' : 'ask'); break;
+      case 'q': if (QUIZ.length) setMode(state.mode === 'quiz' ? 'read' : 'quiz'); break;
       case 'm': toggleVoice(); break;
       case '?': showHelp(); break;
       case 'Escape':
@@ -2186,7 +2543,8 @@
     renderSection();
     renderBeat(false);
   }
-  if (state.mode === 'qa') renderQA();
+  if (state.mode === 'ask') renderAsk();
+  else if (state.mode === 'quiz') renderQuiz();
   refreshLock();
   updatePlayBtn();
   requestAnimationFrame(tick);
