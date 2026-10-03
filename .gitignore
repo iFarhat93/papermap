@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# generated output and caches
+p2p-out/
+.p2p-cache/
+
+
+# personal files (profiles describe real people; configs may name private endpoints)
+/profile.md
+/profiles/
+/paper2podcast.toml
+*.pdf
+.env

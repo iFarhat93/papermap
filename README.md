@@ -1,0 +1,50 @@
+# PaperMap
+
+Turn a scientific paper into an interactive, narrated walkthrough written for one specific reader.
+
+![PaperMap demo: "Attention Is All You Need" explained for a software engineer moving into ML](docs/images/demo.gif)
+
+You give it a paper (a PDF or an arXiv link) and a short `profile.md` describing the reader. It builds one self-contained web page with:
+
+- **High-level and deep-dive views.** Section-by-section narration with diagrams that highlight what is being explained.
+- **A knowledge graph.** How the paper connects to prior work, models, datasets and concepts.
+- **Q&A.** Answers grounded in the paper, with links back to the sections they come from.
+
+It runs with local models (Ollama, vLLM, llama.cpp, LM Studio) or with cloud APIs.
+
+## Install
+
+Python 3.11 or newer.
+
+```bash
+git clone https://github.com/iFarhat93/papermap.git
+cd papermap
+pip install -e ".[all]"
+```
+
+The command-line tool is called `paper2podcast`.
+
+## Run
+
+```bash
+# 1. write a profile.md describing the reader (see examples/)
+paper2podcast init
+
+# 2. generate (here with a local model through Ollama; any PDF path works too)
+paper2podcast https://arxiv.org/abs/1706.03762 --profile profile.md --provider ollama --model qwen2.5:7b
+
+# 3. open the result with Q&A enabled
+paper2podcast serve p2p-out/1706.03762-profile
+```
+
+Optional flags: `--tts edge` adds real voice audio, and `--style duo` switches to a host-and-expert conversation. Re-running is instant because every step is cached.
+
+Other providers (vLLM, llama.cpp, LM Studio, OpenAI-compatible and Anthropic APIs), voices, configuration and debugging are covered in [docs/GUIDE.md](docs/GUIDE.md). How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Author
+
+Built by Ibrahim ([@iFarhat93](https://github.com/iFarhat93)), an AI and robotics researcher working on Vision-Language-Action models and embodied AI. Ibrahim's own [listener profile](examples/profile.example.md) is included as an example.
+
+## License
+
+MIT
