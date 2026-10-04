@@ -1557,6 +1557,11 @@
 
   function offlineMessage() {
     const viaFile = !/^https?:$/.test(location.protocol);
+    const reason = !viaFile && state.qaInfo && state.qaInfo.reason; // the server says why, e.g. a page shared without the paper's text
+    if (reason) {
+      const text = String(reason).replace(/^./, (c) => c.toUpperCase());
+      return [h('strong', {}, 'Questions are off. '), text.split('`').map((part, i) => (i % 2 ? h('code', {}, part) : part)), '.'];
+    }
     return [
       h('strong', {}, 'Questions need the local server. '),
       viaFile ? 'This page was opened as a file. ' : 'The Q&A endpoint is not reachable. ',

@@ -235,12 +235,14 @@ def _serve(out_dir: Path, config: Config, cache: Cache, port: int = 8765, host: 
 
     log = get_logger()
     engine = None
+    reason = ""
     if qa:
         try:
             engine = QAEngine(out_dir, LLMClient(create_provider(config.llm_for("qa")), cache))
         except (LLMError, FileNotFoundError) as e:
             log.warning("Q&A disabled: %s", e)
-    serve(out_dir, engine, host=host, port=port, open_browser=open_browser)
+            reason = str(e)
+    serve(out_dir, engine, host=host, port=port, open_browser=open_browser, reason=reason)
     return 0
 
 

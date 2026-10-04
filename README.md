@@ -26,13 +26,13 @@ pip install -e ".[all]"
 
 The command-line tool is called `papermap`.
 
-## Try the example
+## Examples
 
-[`examples/attention-is-all-you-need`](examples/attention-is-all-you-need) is a finished page for *Attention Is All You Need*. Open its `index.html` in a browser; nothing else is needed. To generate it yourself with a local model (see [Use a local model](#use-a-local-model)):
+Two pages generated with `qwen3.8:27b` for the reader in [`examples/profile.example.md`](examples/profile.example.md). Open one:
 
 ```bash
-papermap https://arxiv.org/abs/1706.03762 --profile examples/profile.example.md --provider ollama --model qwen2.5:7b
-papermap serve papermap-out/1706.03762-profile.example
+papermap serve examples/attention-is-all-you-need
+papermap serve examples/pi05-knowledge-insulation
 ```
 
 ## Run
