@@ -32,6 +32,23 @@ The page has three modes:
 - **Ask**: open at any time. Ask while reading (the Ask tab next to the narration follows what is on screen) or in the full Ask view. Answers are grounded in the paper and link back to sections. This needs `papermap serve`.
 - **Quiz**: unlocks once every section has been read through to its last beat. It has at least 10 multiple-choice questions (`quiz_questions`), spread across the sections, written for the profile and chosen so that no two test the same idea. After the last question you get a score and a per-section list of what to review. Each missed question shows your answer, the correct one, an explanation and the supporting sentence from the paper. It also has a button that jumps to the narration beat covering it, and one that opens the PDF page with that sentence highlighted. Results and the best score stay in the browser, and retakes reshuffle the options. Turn the quiz off with `--no-quiz` or `quiz = false`.
 
+## Reader memory
+
+PaperMap remembers what it learns about a reader, on your computer, and uses it to explain the next paper better.
+
+- **What it records.** While a page is open through `papermap serve`, it records your quiz answers (which concepts you got right or wrong), the questions you ask, the papers you finish, and your answer to "How was the level?" at the end.
+- **How it refines.** Before each run the record is summarized in code. Concepts you got right in recent quizzes count as known. Concepts you missed or keep asking about count as weak spots. Recent evidence weighs more than old, so an old mistake is forgiven after recent right answers. Recent level ratings move the depth up or down a notch. The summary is added to your profile. The narration skips what you know, spends time on your weak spots and connects to papers you have read, and answers to your questions get the same treatment.
+- **Where it lives.** It is one plain JSON-lines file per reader, which you can read or edit: `%LOCALAPPDATA%\papermap\readers\<reader>\events.jsonl` on Windows, `~/.local/share/papermap/readers/<reader>/` elsewhere. Override the location with `PAPERMAP_MEMORY_DIR`. It is never written into a generated page, so sharing a page shares none of it.
+- **Which reader.** By default the reader is named after the profile file (`--profile profile.md` gives the reader `profile`). Choose another name with `--reader`.
+
+```bash
+papermap memory                                # list readers
+papermap memory profile                        # what PaperMap has learned about this reader
+papermap memory profile --forget               # delete it
+papermap paper.pdf -p profile.md --no-memory   # ignore it for one run
+papermap serve <folder> --no-memory            # record nothing this time
+```
+
 ## Models
 
 All model access goes through one small provider interface (`papermap/llm/base.py`), so you can switch backends without touching the pipeline.

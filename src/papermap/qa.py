@@ -10,6 +10,7 @@ from typing import Any
 
 from .llm import LLMClient, Message
 from .log import get_logger
+from .memory import apply_memory
 from .models import Experience
 from .retrieval import BM25
 from .stages.base import SYSTEM_PROMPT
@@ -35,7 +36,7 @@ QUESTION: {question}"""
 
 
 class QAEngine:
-    def __init__(self, out_dir: Path, llm: LLMClient):
+    def __init__(self, out_dir: Path, llm: LLMClient, memory=None):
         self.out_dir = Path(out_dir)
         self.llm = llm
         self.exp = Experience.model_validate(json.loads((self.out_dir / "experience.json").read_text("utf-8")))
@@ -49,6 +50,8 @@ class QAEngine:
         self.titles = {s.id: s.title for s in self.exp.sections}
         self.bm25 = BM25([f"{c['title']} {c['text']}" for c in self.chunks])
         self.node_by_id = {n.id: n for n in self.exp.graph.nodes}
+        # answers adapt to what this reader has shown they know (the page itself carries none of it)
+        self.profile = apply_memory(self.exp.profile, memory, adjust_level=False)
 
     # ------------------------------------------------------------- context
     def _diagram(self, diagram_id: str | None) -> dict | None:
@@ -130,7 +133,7 @@ class QAEngine:
             return {"answer": "Ask me anything about the paper.", "refs": []}
         ctx = ctx or {}
         context, where = self.build_context(question, ctx)
-        prompt = QA_PROMPT.format(profile=self.exp.profile.brief(), where=where, ids=", ".join(self.titles), question=question)
+        prompt = QA_PROMPT.format(profile=self.profile.brief(), where=where, ids=", ".join(self.titles), question=question)
         messages: list[Message] = []
         for turn in (history or [])[-6:]:
             if turn.get("role") in ("user", "assistant") and turn.get("content"):

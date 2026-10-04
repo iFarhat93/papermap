@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .. import __version__
 from ..config import stable_hash
+from ..memory import concepts_in
 from ..models import (
     OVERVIEW_ID,
     FigureRef,
@@ -112,7 +113,7 @@ def assemble(
             contribution=ov.contribution,
             key_result=ov.key_result,
         ),
-        profile=profile,
+        profile=profile.public(),  # what reader memory added stays on this computer
         sections=[SectionMeta(id=s.id, title=s.title, role=s.role, pages=s.pages, summary=s.summary) for s in und.sections],
         views=views,
         graph=kg,
@@ -194,6 +195,9 @@ def _run(ctx: RunContext, deps: dict) -> Experience:
     exp.paper.source_kind = paper.source_kind
     exp.paper.arxiv_id = paper.arxiv_id
     exp.quiz = deps["quiz"].model_copy(deep=True) if deps.get("quiz") else Quiz()
+    for q in exp.quiz.questions:  # the concepts each question tests, for reader memory
+        q.concepts = concepts_in(f"{q.question} {q.options[q.answer]} {q.explanation}", exp.graph)
+    exp.reader = ctx.reader
 
     out = ctx.out_dir
     out.mkdir(parents=True, exist_ok=True)

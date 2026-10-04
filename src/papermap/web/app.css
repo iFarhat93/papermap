@@ -376,6 +376,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .unread .sec-chips { justify-content: center; }
 .unread-label { font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 650; }
 .dialog-chips { margin: -6px 0 18px; }
+.level-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.level-q { font-size: 13px; color: var(--text-secondary); margin-right: 4px; }
 
 /* ------------------------------------------------------------------- quiz */
 .quiz { flex: 1; min-height: 0; overflow-y: auto; }

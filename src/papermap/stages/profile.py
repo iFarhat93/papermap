@@ -1,7 +1,8 @@
-"""Stage 3 - profile: profile.md (free-form) -> structured AudienceProfile."""
+"""Stage 3 - profile: profile.md (free-form) + reader memory -> structured AudienceProfile."""
 
 from __future__ import annotations
 
+from ..memory import apply_memory
 from ..models import AudienceProfile, Understanding
 from .base import SYSTEM_PROMPT, RunContext, Stage
 from .common import context_block
@@ -43,6 +44,10 @@ def _run(ctx: RunContext, deps: dict) -> AudienceProfile:
         tag="profile",
     )
     log.info("%s - %s, depth %s, %s", profile.name, profile.expertise_level, profile.depth, profile.language)
+    if ctx.memory is not None and not ctx.memory.empty:
+        profile = apply_memory(profile, ctx.memory)
+        log.info("reader memory: %d papers; knows %d concepts, struggled with %d%s", ctx.memory.papers,
+                 len(profile.mastered), len(profile.struggles), f"; {profile.level_note}" if profile.level_note else "")
     return profile
 
 
@@ -52,6 +57,6 @@ STAGE = Stage(
     deps=("understand",),
     output=AudienceProfile,
     run=_run,
-    key_extra=lambda ctx: ctx.profile_text,
-    description="profile.md -> structured audience model",
+    key_extra=lambda ctx: (ctx.profile_text, ctx.memory.digest() if ctx.memory is not None else ""),
+    description="profile.md + reader memory -> structured audience model",
 )

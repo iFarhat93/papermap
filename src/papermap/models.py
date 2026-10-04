@@ -184,6 +184,9 @@ class Understanding(Model):
 # ------------------------------------------------------------------- profile
 
 
+MEMORY_FIELDS = ("mastered", "struggles", "history", "level_note")
+
+
 class AudienceProfile(Model):
     name: str = "Reader"
     summary: str = "A curious reader."
@@ -199,6 +202,11 @@ class AudienceProfile(Model):
     language_code: str = "en-US"
     analogy_domains: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
+    # Learned from earlier papers (reader memory, see memory.py); never embedded in a page.
+    mastered: list[str] = Field(default_factory=list)
+    struggles: list[str] = Field(default_factory=list)
+    history: list[str] = Field(default_factory=list)
+    level_note: str = ""
 
     @field_validator("expertise_level", mode="before")
     @classmethod
@@ -231,9 +239,29 @@ class AudienceProfile(Model):
             parts.append("Good analogy domains: " + "; ".join(self.analogy_domains))
         if self.avoid:
             parts.append("Avoid: " + "; ".join(self.avoid))
+        if self.mastered:
+            parts.append("Has shown they understand (earlier papers and quizzes; do not re-explain): " + "; ".join(self.mastered))
+        if self.struggles:
+            parts.append("Has struggled with before (explain carefully, build intuition): " + "; ".join(self.struggles))
+        if self.history:
+            parts.append("Papers already read with PaperMap (connect to them when relevant): " + "; ".join(self.history))
+        if self.level_note:
+            parts.append(f"Level feedback: {self.level_note}")
         parts.append(f"Tone: {self.tone}")
         parts.append(f"Language: {self.language}")
         return "\n".join(parts)
+
+    def public(self) -> AudienceProfile:
+        """The profile as embedded in a page: what reader memory added stays on this computer."""
+        return self.model_copy(update={"mastered": [], "struggles": [], "history": [], "level_note": ""})
+
+    @classmethod
+    def model_json_schema(cls, *args, **kwargs) -> dict[str, Any]:
+        """The profile stage asks the model only for what profile.md says; memory is added in code."""
+        schema = super().model_json_schema(*args, **kwargs)
+        for name in MEMORY_FIELDS:
+            schema.get("properties", {}).pop(name, None)
+        return schema
 
 
 # ------------------------------------------------------------------- explain
@@ -591,6 +619,7 @@ class QuizQuestion(Model):
     kind: str = "concept"
     difficulty: str = "medium"
     beat_id: str | None = None  # the narration beat that covers it (for "review this")
+    concepts: list[str] = Field(default_factory=list)  # graph concepts it tests (reader memory)
     source: SourceRef | None = None  # where the quote is in the PDF (filled by the render stage)
 
 
@@ -612,6 +641,7 @@ class Experience(Model):
     narration: NarrationInfo
     qa: QAInfo
     quiz: Quiz = Field(default_factory=Quiz)
+    reader: str = ""  # whose reader memory `papermap serve` updates ("" = none)
 
 
 SectionView.model_rebuild()

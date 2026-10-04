@@ -35,6 +35,8 @@ class RunContext:
     out_dir: Path
     source: str
     profile_text: str
+    reader: str = ""  # whose reader memory this run uses and the page records to
+    memory: Any = None  # MemorySummary of that reader (see memory.py), or None
     stage_keys: dict[str, str] = field(default_factory=dict)
     _clients: dict[str, LLMClient] = field(default_factory=dict)
 

@@ -4,6 +4,7 @@
     papermap serve papermap-out/<name>           # open it, with grounded Q&A
     papermap render papermap-out/<name>          # rebuild the page with the current design (no model calls)
     papermap init                                # write config + profile templates
+    papermap memory [reader]                     # what PaperMap has learned about a reader
     papermap check                               # test the model/TTS configuration
     papermap stages                              # list pipeline stages
 """
@@ -24,7 +25,7 @@ from .cache import Cache
 from .config import EXAMPLE_CONFIG, Config, load_config
 from .log import add_file_handler, get_logger, setup_logging
 
-COMMANDS = ("run", "serve", "render", "init", "check", "stages")
+COMMANDS = ("run", "serve", "render", "init", "check", "stages", "memory")
 
 EXAMPLE_PROFILE = """# Who is listening?
 
@@ -129,6 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--force", metavar="STAGE", action="append", default=[], help="recompute a stage even if cached (repeatable)")
     run.add_argument("--no-cache", action="store_true", help="ignore all caches (fresh LLM calls)")
     run.add_argument("--cache-dir", help=f"cache location (default: {default_cache_dir()})")
+    run.add_argument("--reader", help="whose reader memory to use and update (default: the profile file name)")
+    run.add_argument("--no-memory", action="store_true", help="ignore reader memory for this run")
     run.add_argument("--serve", action="store_true", help="serve the result with Q&A when done")
     run.add_argument("--port", type=int, default=8765)
     run.add_argument("-v", "--verbose", action="store_true", help="debug output")
@@ -141,6 +144,8 @@ def build_parser() -> argparse.ArgumentParser:
     srv.add_argument("--port", type=int, default=8765)
     srv.add_argument("--no-browser", action="store_true")
     srv.add_argument("--no-qa", action="store_true", help="static serving only")
+    srv.add_argument("--reader", help="record to this reader's memory (default: the reader the page was made for)")
+    srv.add_argument("--no-memory", action="store_true", help="do not record anything to reader memory")
     srv.add_argument("--cache-dir")
     srv.add_argument("-v", "--verbose", action="store_true")
 
@@ -158,6 +163,10 @@ def build_parser() -> argparse.ArgumentParser:
     rnd.add_argument("-v", "--verbose", action="store_true")
 
     sub.add_parser("stages", help="list the pipeline stages")
+
+    mem = sub.add_parser("memory", help="what PaperMap has learned about a reader (kept on this computer)")
+    mem.add_argument("reader", nargs="?", help="reader id (default: list all readers)")
+    mem.add_argument("--forget", action="store_true", help="delete this reader's memory")
     return parser
 
 
@@ -174,6 +183,7 @@ def _normalize_argv(argv: list[str]) -> list[str]:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    from .memory import MemoryStore, consolidate, reader_id
     from .pipeline import PipelineError, run_pipeline
     from .stages.base import RunContext
 
@@ -197,7 +207,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         __version__, config.llm.provider, config.llm.model, config.tts.provider, found or "defaults",
     )
     log.debug("cache: %s | output: %s", cache.root, out_dir.resolve())
-    ctx = RunContext(config=config, cache=cache, out_dir=out_dir, source=args.paper, profile_text=profile_text)
+    reader = "" if args.no_memory else reader_id(args.reader or (Path(args.profile).stem if args.profile else ""))
+    memory = consolidate(MemoryStore().events(reader), reader) if reader else None
+    if reader:
+        log.debug("reader memory %r: %s", reader, MemoryStore().path(reader))
+    ctx = RunContext(config=config, cache=cache, out_dir=out_dir, source=args.paper, profile_text=profile_text,
+                     reader=reader, memory=memory)
     t0 = time.perf_counter()
     try:
         result = run_pipeline(ctx, force=args.force, until=args.until)
@@ -218,7 +233,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     log.info("open %s", index)
     log.info("for Q&A run: papermap serve %s", out_dir)
     if args.serve:
-        return _serve(out_dir, config, cache, port=args.port)
+        return _serve(out_dir, config, cache, port=args.port, memory=not args.no_memory, reader=reader)
     return 0
 
 
@@ -228,21 +243,33 @@ def _usage(ctx, log) -> None:
 
 
 def _serve(out_dir: Path, config: Config, cache: Cache, port: int = 8765, host: str = "127.0.0.1",
-           open_browser: bool = True, qa: bool = True) -> int:
+           open_browser: bool = True, qa: bool = True, memory: bool = True, reader: str | None = None) -> int:
     from .llm import LLMClient, LLMError, create_provider
+    from .memory import MemoryStore, Recorder, consolidate, reader_id
+    from .models import Experience
     from .qa import QAEngine
     from .server import serve
 
     log = get_logger()
+    recorder, summary = None, None
+    if memory:  # works without Q&A too: the quiz runs in the page
+        try:
+            exp = Experience.model_validate_json((out_dir / "experience.json").read_text("utf-8"))
+            who = reader_id(reader or exp.reader)
+        except (OSError, ValueError):
+            who = ""
+        if who:
+            store = MemoryStore()
+            recorder, summary = Recorder(store, who, exp), consolidate(store.events(who), who)
     engine = None
     reason = ""
     if qa:
         try:
-            engine = QAEngine(out_dir, LLMClient(create_provider(config.llm_for("qa")), cache))
+            engine = QAEngine(out_dir, LLMClient(create_provider(config.llm_for("qa")), cache), memory=summary)
         except (LLMError, FileNotFoundError) as e:
             log.warning("Q&A disabled: %s", e)
             reason = str(e)
-    serve(out_dir, engine, host=host, port=port, open_browser=open_browser, reason=reason)
+    serve(out_dir, engine, host=host, port=port, open_browser=open_browser, reason=reason, recorder=recorder)
     return 0
 
 
@@ -260,7 +287,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
     else:
         config, _ = load_config(args.config, overrides)
     cache = Cache(args.cache_dir or default_cache_dir())
-    return _serve(out_dir, config, cache, port=args.port, host=args.host, open_browser=not args.no_browser, qa=not args.no_qa)
+    return _serve(out_dir, config, cache, port=args.port, host=args.host, open_browser=not args.no_browser, qa=not args.no_qa,
+                  memory=not args.no_memory, reader=args.reader)
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -335,6 +363,35 @@ def cmd_stages(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_memory(args: argparse.Namespace) -> int:
+    from .memory import MemoryStore, consolidate
+
+    store = MemoryStore()
+    if not args.reader:
+        readers = store.readers()
+        for r in readers:
+            m = consolidate(store.events(r), r)
+            print(f"{r:<24} {m.papers} papers, {len(m.mastered)} concepts known, {len(m.struggles)} to reinforce")
+        print(f"{'no reader memory yet' if not readers else 'stored'} in {store.root}")
+        return 0
+    if args.forget:
+        print(f"forgot {args.reader}" if store.forget(args.reader) else f"no memory for {args.reader}")
+        return 0
+    m = consolidate(store.events(args.reader), args.reader)
+    if not m.concepts and not m.history:
+        print(f"no memory for {args.reader} yet ({store.path(args.reader)})")
+        return 0
+    print(f"{args.reader}: {m.papers} papers ({store.path(args.reader)})")
+    for title, items in (("Papers read", m.history), ("Has shown they understand", m.mastered), ("Has struggled with", m.struggles)):
+        if items:
+            print(f"\n{title}:")
+            for item in items:
+                print(f"  - {item}")
+    if m.level:
+        print(f"\nLevel: recent papers felt {'too basic' if m.level > 0 else 'too advanced'} ({m.level:+.1f})")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):  # Windows consoles default to a legacy codepage
         try:
@@ -347,7 +404,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.command:
         parser.print_help()
         return 0
-    handler = {"run": cmd_run, "serve": cmd_serve, "render": cmd_render, "init": cmd_init, "check": cmd_check, "stages": cmd_stages}[args.command]
+    handler = {"run": cmd_run, "serve": cmd_serve, "render": cmd_render, "init": cmd_init, "check": cmd_check, "stages": cmd_stages,
+               "memory": cmd_memory}[args.command]
     try:
         return handler(args)
     except KeyboardInterrupt:

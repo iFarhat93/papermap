@@ -29,6 +29,7 @@ src/papermap/
   grounding.py      quote / number / attribution / entity checks against the paper text
   retrieval.py      BM25 for Q&A
   qa.py             grounded question answering over a generated experience
+  memory.py         reader memory: local event log, consolidation, use in the profile
   server.py         static file server + /api/ask + /api/health (stdlib only)
   log.py            console + per-run file logging
   llm/              provider interface, client (cache/retry/JSON), providers
@@ -60,7 +61,7 @@ If an entry with that key exists, the stage is loaded instead of run. Because ke
 |---|---|---|
 | `parse` | `ParsedPaper` | Fetches the PDF (path, URL or arXiv). Reads PyMuPDF spans and estimates the body font size. Detects headings from style plus numbering or well-known names, with a sanity filter on the numbering sequence (which removes table cells such as "73.7 MultiNLI"). Strips repeated headers and footers, and splits off references and figure captions. Falls back to page chunks when no structure is found. When the paper is on arXiv, the LaTeX source replaces the PDF text: sections, exact math, resolved references and citations, tables as rows and columns, figure files rendered to PNG, all mapped back to PDF pages. Without LaTeX, ruled PDF tables and figure regions are extracted instead. |
 | `understand` | `Understanding` | One **plan** call chapters the raw sections into 4–9 logical sections and extracts the title, authors, method name, problem, contribution and key result. Sections are re-ordered, de-duplicated, and split when they exceed `max_section_chars`, so nothing is truncated. One **analyze** call per section extracts the summary, key points, verbatim quotes, equations, results, concepts and prior work. A synthetic overview section `s0` is grounded on the abstract. |
-| `profile` | `AudienceProfile` | Turns free-form `profile.md` into a structured audience model. |
+| `profile` | `AudienceProfile` | Turns free-form `profile.md` into a structured audience model, then refines it with the reader's memory (see below). |
 | `explain` | `Explanations` | For each section and each view (`high`, `deep`), writes 1–6 **beats**: spoken narration, an on-screen subtitle and an optional verified quote chosen by index. It also decides whether a diagram is needed and of which type. The prompt includes the whole episode outline, which avoids repetition across sections, plus the listener model. A check rejects numbers that are not in the section text and enforces the beat count. It also writes the suggested Q&A questions. |
 | `review` | `Explanations` | Fact-checks every section's beats against the section text and its tables: unsupported claims, numbers attached to the wrong thing, repetition. Corrections are applied unless they introduce a number that is not in the paper; the issues are kept in `debug/review.json`. |
 | `diagrams` | `Diagrams` | For each requested diagram, produces a typed spec: `flow` (nodes, edges, groups), `bar`, `table` or `equation`. It also produces a per-beat **focus** map, listing the diagram elements to highlight while each beat plays. Structural problems, ungrounded numbers and misattributed numbers (a value that is not next to its label in a table row, column or sentence) are fed back to the model; a diagram that cannot be fixed is skipped. |
@@ -106,7 +107,16 @@ The page's main parts are in `app.js`:
 
 ## Q&A server
 
-`papermap serve <dir>` serves the folder and answers `POST /api/ask`. To build an answer, the engine retrieves the top BM25 chunks from `qa_index.json`, always including the section the listener is on. It adds every section's notes, the graph facts that touch entities mentioned in the question, and the JSON of the diagram being asked about. The prompt requires citations, and asks the model to say so plainly when the paper does not answer the question. The model configuration comes from `papermap.config.json`, which is the one used for generation. You can override it with `--config` or `--provider`/`--model`, or with a `[stages.qa]` section.
+`papermap serve <dir>` serves the folder, answers `POST /api/ask` and, when reader memory is on, records `POST /api/memory` events (see [Reader memory](#reader-memory)). To build an answer, the engine retrieves the top BM25 chunks from `qa_index.json`, always including the section the listener is on. It adds every section's notes, the graph facts that touch entities mentioned in the question, and the JSON of the diagram being asked about. The prompt requires citations, and asks the model to say so plainly when the paper does not answer the question. The model configuration comes from `papermap.config.json`, which is the one used for generation. You can override it with `--config` or `--provider`/`--model`, or with a `[stages.qa]` section.
+
+## Reader memory
+
+[`memory.py`](../src/papermap/memory.py) keeps what PaperMap learns about a reader across papers, on the reader's computer.
+
+- **Recording.** `papermap serve` attaches a `Recorder` for the reader the page was made for (`Experience.reader`, by default the profile file name). The page posts `POST /api/memory` events: `quiz` (the option chosen for each question, re-checked against the answer key on the server), `finished` and `level` (too basic, just right or too advanced). Each question asked through `/api/ask` is recorded too. Every event goes into an append-only `events.jsonl` in the reader's folder, together with the graph concepts it touches. At render time, quiz questions are tagged with the graph concepts they test.
+- **Consolidation.** `consolidate()` turns the log into a `MemorySummary`. Each event adds evidence to a concept: right +1, missed -1.5, asked -0.5, seen in a finished paper +0.3. Evidence fades by 0.8 for every paper read since. Concepts scoring 1 or more are mastered, and concepts scoring -1 or less are struggles. The last three level ratings set a level adjustment, and the last five papers form a history with their quiz scores.
+- **Use.** The profile stage applies the summary in code (`apply_memory`). It fills `mastered`, `struggles`, `history` and `level_note`, removes self-reported known concepts that the quizzes contradict, and moves `depth` and `expertise_level` by one notch on consistent level feedback. These fields reach every prompt through `AudienceProfile.brief()`, but they are left out of the JSON schema the model is asked to fill. The stage's cache key includes the summary's digest, so explanations are redone only when what they would see changes. The Q&A engine applies the same summary to its answers.
+- **Privacy.** The memory never leaves the machine and is never embedded in a page: render stores `profile.public()`, which drops the learned fields.
 
 ## Extension points
 
