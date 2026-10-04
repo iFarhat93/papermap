@@ -36,7 +36,7 @@ src/papermap/
   stages/           one module per pipeline stage
   sources/          arXiv lookup + LaTeX parser, PDF tables/figures, page images + quote location
   web/              index.html template, app.css, app.js (the generated page)
-tests/              pytest suite (mock provider, generated PDF)
+tests/              pytest suite, on the dev branch only (mock provider, generated PDF)
 ```
 
 ## Pipeline and stages

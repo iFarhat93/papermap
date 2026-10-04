@@ -166,7 +166,10 @@ The cache lives in `%LOCALAPPDATA%\papermap\cache` on Windows and in `~/.cache/p
 
 ## Development
 
+The test suite lives on the `dev` branch:
+
 ```bash
+git checkout dev
 pip install -e ".[dev,anthropic]"
 pytest
 ```
