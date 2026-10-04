@@ -26,6 +26,15 @@ pip install -e ".[all]"
 
 The command-line tool is called `papermap`.
 
+## Try the example
+
+[`examples/attention-is-all-you-need`](examples/attention-is-all-you-need) is a finished page for *Attention Is All You Need*. Open its `index.html` in a browser; nothing else is needed. To generate it yourself with a local model (see [Use a local model](#use-a-local-model)):
+
+```bash
+papermap https://arxiv.org/abs/1706.03762 --profile examples/profile.example.md --provider ollama --model qwen2.5:7b
+papermap serve papermap-out/1706.03762-profile.example
+```
+
 ## Run
 
 ```bash
@@ -58,6 +67,19 @@ The simplest way to run the model on your own machine is [Ollama](https://ollama
    ```
 
 `papermap serve` then answers your questions with the same model. A 7B model is enough to try PaperMap. A larger one writes better narration and diagrams, if your machine can run it.
+
+## Time and cost
+
+One full page for *Attention Is All You Need* (15 pages), from download to quiz:
+
+| Model | Runs on | Time | Cost |
+|---|---|---|---|
+| `qwen2.5:7b` | Ollama, RTX 5070 Ti (16 GB) | 4 min | free |
+| `qwen3.8:27b` | Ollama, same GPU, partly on CPU | 40 min | free |
+| `claude-sonnet-5-5` or `gpt-6.1-sol` | Anthropic or OpenAI API | about 5 min | about $0.80 |
+| `claude-opus-5-5` | Anthropic API | about 5 min | about $1.70 |
+
+The local times are measured; the 27B run made the example above. The 7B page is thinner, with fewer sections and simpler diagrams. The cloud rows are estimates: the 27B run's 218k input and 39k output tokens at October 2026 list prices, before prompt-caching discounts. Edge voices (`--tts edge`) add about 6 minutes; the browser voice adds nothing.
 
 ## License
 

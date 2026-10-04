@@ -345,7 +345,7 @@ _SCI = re.compile(r"^\s*([-+]?\d*\.?\d+)\s*(?:[x×*·⋅]\s*10\s*\^?\s*\(?\s*([-
 
 
 def parse_number(v: Any) -> float | None:
-    """Accept 28.4, "28.4", "28.4%", "1,024", "3.3e18" and "3.3 × 10^18"."""
+    """Accept 28.4, "28.4", "28.4%", "1,024", "3.3e18", "3.3 × 10^18" and LaTeX "$3.3 \\cdot 10^{18}$"."""
     if v is None or isinstance(v, (int, float)):
         return v
     s = str(v).strip().replace(",", "")
@@ -355,6 +355,7 @@ def parse_number(v: Any) -> float | None:
         return float(s.rstrip("%"))
     except ValueError:
         pass
+    s = re.sub(r"\\(?:cdot|times)", "×", s.replace("$", "")).replace("{", "").replace("}", "")
     m = _SCI.match(s)
     if not m:
         raise ValueError(f"not a number: {v!r}")
