@@ -1,6 +1,6 @@
 # Understanding papers with PaperMap
 
-Turn a dense paper into a narrated, diagram-driven walkthrough written for one reader. This page uses [Knowledge insulating vision-language-action models: train fast, run fast, generalize better](https://arxiv.org/abs/2505.23705) (Driess et al., 2025, the π0.5 knowledge-insulation paper) as the running example.
+The goal is simple: understand a paper faster, the way a human expert would explain it to you, layer by layer. PaperMap turns a dense paper into a narrated, diagram-driven walkthrough written for one reader. This page uses [Knowledge insulating vision-language-action models: train fast, run fast, generalize better](https://arxiv.org/abs/2505.23705) (Driess et al., 2025, the π0.5 knowledge-insulation paper) as the running example.
 
 ![PaperMap explaining the knowledge-insulation paper to a robotics researcher](../images/demo.gif)
 
@@ -8,11 +8,11 @@ Turn a dense paper into a narrated, diagram-driven walkthrough written for one r
 
 Reading a paper front to back is rarely how understanding happens. The knowledge-insulation paper is 18 pages: a mixture-of-experts architecture, two training objectives, half a dozen baselines, and results spread over real-robot tasks, LIBERO and DROID. Its idea fits in one sentence (train the VLM backbone on discretized actions, and stop the gradients of the new continuous action expert from reaching it), but finding that sentence, and seeing how the loss, the attention masks and the experiments support it, is the real work. The method is on page 5, the evidence on pages 6 to 10, and the models it is compared with (π0, π0-FAST, OpenVLA-OFT, HybridVLA) are scattered through the text.
 
-PaperMap gives you the walkthrough a colleague who already read the paper would give: the big picture first, the mechanism drawn, the key sentence read out loud with the page behind it, the table pointed at, and questions answered from the paper.
+An expert who already read the paper does not hand you the PDF. They explain it in layers: first the one idea and why it matters, then the mechanism drawn on a whiteboard, then the key sentences and tables from the paper itself, and finally your questions, answered from the paper. PaperMap builds that layered walkthrough, written for what you already know.
 
 ## What it does
 
-You give it a paper (a PDF or an arXiv link) and a short `profile.md` describing the reader. It builds one self-contained web page with three synchronized views: a high-level walkthrough, a deep dive and a knowledge graph. A Paper tab shows the PDF page behind each sentence with the quoted passage highlighted. `papermap serve` answers questions from the paper at any time, and a quiz at the end checks what you understood. It runs with local models (Ollama, vLLM, llama.cpp, LM Studio) or with cloud APIs.
+You give it a paper (a PDF or an arXiv link) and a short `profile.md` describing the reader. It builds one self-contained web page whose parts are the layers of that explanation: a high-level walkthrough (the idea), a deep dive (the mechanism), a knowledge graph (how it relates to prior work), and a Paper tab that shows the PDF page behind each sentence with the quoted passage highlighted (the paper's own words). `papermap serve` answers your questions from the paper at any time, and a quiz at the end checks what you understood. It runs with local models (Ollama, vLLM, llama.cpp, LM Studio) or with cloud APIs.
 
 ![The PaperMap pipeline: parse, understand, profile, explain, review, diagrams, graph, quiz, narrate, render](../images/pipeline.png)
 
