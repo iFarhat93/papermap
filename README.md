@@ -70,16 +70,13 @@ The simplest way to run the model on your own machine is [Ollama](https://ollama
 
 ## Time and cost
 
-One full page for *Attention Is All You Need* (15 pages), from download to quiz:
+One full page for *Attention Is All You Need* (15 pages):
 
 | Model | Runs on | Time | Cost |
 |---|---|---|---|
-| `qwen2.5:7b` | Ollama, RTX 5070 Ti (16 GB) | 4 min | free |
-| `qwen3.8:27b` | Ollama, same GPU, partly on CPU | 40 min | free |
+| `qwen3.8:27b` (tested) | Ollama, RTX 5070 Ti (16 GB) | 40 min | free |
 | `claude-sonnet-5-5` or `gpt-6.1-sol` | Anthropic or OpenAI API | about 5 min | about $0.80 |
 | `claude-opus-5-5` | Anthropic API | about 5 min | about $1.70 |
-
-The local times are measured; the 27B run made the example above. The 7B page is thinner, with fewer sections and simpler diagrams. The cloud rows are estimates: the 27B run's 218k input and 39k output tokens at October 2026 list prices, before prompt-caching discounts. Edge voices (`--tts edge`) add about 6 minutes; the browser voice adds nothing.
 
 ## License
 
