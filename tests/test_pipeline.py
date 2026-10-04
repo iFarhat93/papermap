@@ -116,6 +116,15 @@ def test_qa_engine_answers_with_section_refs(generated):
     assert res["refs"] and all(r.startswith("s") for r in res["refs"])
 
 
+def test_qa_engine_refuses_a_page_shared_without_the_paper_text(generated, tmp_path):
+    _, ctx, _ = generated
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "experience.json").write_bytes((ctx.out_dir / "experience.json").read_bytes())  # no qa_index.json
+    with pytest.raises(FileNotFoundError, match="without the paper's text"):
+        QAEngine(shared, LLMClient(create_provider(ctx.config.llm), ctx.cache))
+
+
 def test_cli_run_end_to_end(tmp_path, sample_pdf, profile_md, monkeypatch):
     monkeypatch.setenv("PAPERMAP_CACHE_DIR", str(tmp_path / "cache"))
     out = tmp_path / "site"

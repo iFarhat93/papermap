@@ -1,0 +1,3249 @@
+{
+ "schema_version": "1",
+ "generator": "papermap 0.1.0",
+ "fingerprint": "bf21eb2a1a408286",
+ "paper": {
+  "title": "Attention is all you need",
+  "authors": [
+   "Ashish Vaswani",
+   "Noam Shazeer",
+   "Niki Parmar",
+   "Jakob Uszkoreit",
+   "Llion Jones",
+   "Aidan N. Gomez",
+   "Łukasz Kaiser",
+   "Illia Polosukhin"
+  ],
+  "source": "https://arxiv.org/abs/1706.03762",
+  "n_pages": 15,
+  "method_name": "Transformer",
+  "one_line": "The paper proposes the Transformer, a sequence transduction model based solely on attention mechanisms that outperforms recurrent and convolutional models in quality and training efficiency.",
+  "problem": "Dominant sequence transduction models rely on complex recurrent or convolutional neural networks that are difficult to parallelize and require significant time to train.",
+  "contribution": "The authors introduce the Transformer, a new simple network architecture based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
+  "key_result": "The model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task and 41.8 BLEU on the WMT 2014 English-to-French translation task.",
+  "source_kind": "latex",
+  "arxiv_id": "1706.03762",
+  "pages": []
+ },
+ "profile": {
+  "name": "",
+  "summary": "An experienced AI/robotics researcher and ML engineer specializing in VLA models and embodied AI, with strong practical skills in PyTorch and deep learning.",
+  "expertise_level": "advanced",
+  "background": [
+   "5 years in AI/ML and research",
+   "Image/video processing and efficient systems",
+   "Multimodal learning and robotics",
+   "PyTorch and GPU implementation"
+  ],
+  "known_concepts": [
+   "Deep learning fundamentals",
+   "Practical transformer concepts",
+   "Attention mechanisms",
+   "Computer vision",
+   "PyTorch",
+   "Model training and evaluation"
+  ],
+  "gaps": [
+   "Deeper mathematical understanding of modern architectures",
+   "Theoretical foundations behind unfamiliar training methods"
+  ],
+  "interests": [
+   "VLA architectures",
+   "Robot learning",
+   "Embodied AI",
+   "Efficient systems",
+   "Multimodal models"
+  ],
+  "goals": [
+   "Understand the problem and main technical contribution",
+   "Identify what is genuinely new compared to existing approaches",
+   "Understand important equations and training objectives",
+   "Evaluate experimental evidence and limitations",
+   "Extract practical implications for data, compute, and scalability"
+  ],
+  "depth": "deep",
+  "tone": "Direct, precise, and intellectually honest; separating claims from evidence without hype.",
+  "language": "English",
+  "language_code": "en-US",
+  "analogy_domains": [
+   "ML",
+   "Robotics",
+   "Computer Vision",
+   "Software Engineering"
+  ],
+  "avoid": [
+   "Re-explaining basic deep learning fundamentals",
+   "Unnecessary hype",
+   "Oversimplifying technical mechanisms",
+   "Inventing results or claims not in the paper"
+  ]
+ },
+ "sections": [
+  {
+   "id": "s0",
+   "title": "The big picture",
+   "role": "overview",
+   "pages": [
+    1
+   ],
+   "summary": "This section introduces the Transformer, a new sequence transduction architecture that relies exclusively on attention mechanisms, eliminating the need for recurrence and convolutions. It demonstrates that this approach yields superior translation quality compared to existing recurrent or convolutional models while significantly reducing training time and costs.",
+   "figures": []
+  },
+  {
+   "id": "s1",
+   "title": "Introduction and Background",
+   "role": "motivation",
+   "pages": [
+    2
+   ],
+   "summary": "This section identifies the inherent sequential computation of recurrent neural networks as a bottleneck for parallelization and long-sequence modeling. It positions the Transformer as a novel architecture that eliminates recurrence entirely, relying solely on attention mechanisms to capture global dependencies. The text contrasts this approach with convolutional alternatives, highlighting the Transformer's constant operational cost for relating distant positions.",
+   "figures": []
+  },
+  {
+   "id": "s2",
+   "title": "Transformer Architecture",
+   "role": "method",
+   "pages": [
+    2,
+    3,
+    5,
+    6
+   ],
+   "summary": "This section details the architecture of the Transformer, an encoder-decoder model composed of stacked self-attention and point-wise fully connected layers. It specifies the use of residual connections, layer normalization, and sinusoidal positional encodings to handle sequence order without recurrence or convolution.",
+   "figures": [
+    {
+     "id": "fig1",
+     "number": 1,
+     "caption": "The Transformer - model architecture.",
+     "images": [
+      "figures/fig1-1.png"
+     ],
+     "sub_captions": [],
+     "page": 3
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "title": "Attention Mechanisms",
+   "role": "method",
+   "pages": [
+    3,
+    4,
+    5
+   ],
+   "summary": "This section defines the Scaled Dot-Product Attention mechanism, explaining why dot products are scaled by the square root of the key dimension to prevent softmax saturation. It introduces Multi-Head Attention, which projects queries, keys, and values into multiple subspaces to allow the model to jointly attend to different representation aspects. Finally, it details how these mechanisms are applied in encoder self-attention, decoder self-attention with masking, and encoder-decoder attention.",
+   "figures": [
+    {
+     "id": "fig2",
+     "number": 2,
+     "caption": "(left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel.",
+     "images": [
+      "figures/fig2-1.png",
+      "figures/fig2-2.png"
+     ],
+     "sub_captions": [],
+     "page": 4
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "title": "Why Self-Attention",
+   "role": "analysis",
+   "pages": [
+    6
+   ],
+   "summary": "This section justifies the use of self-attention by comparing it against recurrent and convolutional layers based on computational complexity, parallelizability, and the path length for learning long-range dependencies. It demonstrates that self-attention offers constant sequential operations and path lengths, outperforming recurrent layers in parallelism and convolutional layers in connectivity efficiency. Additionally, it notes that self-attention provides interpretability benefits by revealing syntactic and semantic structures in attention distributions.",
+   "figures": []
+  },
+  {
+   "id": "s5",
+   "title": "Training Details",
+   "role": "method",
+   "pages": [
+    6,
+    7,
+    8
+   ],
+   "summary": "This section details the experimental setup for training the Transformer models, specifying the use of WMT 2014 datasets and hardware configurations. It defines the optimization strategy using the Adam optimizer with a specific learning rate schedule and outlines three distinct regularization techniques employed to improve model performance.",
+   "figures": []
+  },
+  {
+   "id": "s6",
+   "title": "Experimental Results",
+   "role": "results",
+   "pages": [
+    8,
+    9,
+    10
+   ],
+   "summary": "This section demonstrates that the Transformer model achieves state-of-the-art BLEU scores on English-to-German and English-to-French translation tasks while requiring significantly less training cost than previous recurrent and convolutional models. It further validates the architecture's generalizability by showing strong performance in English constituency parsing without task-specific tuning.",
+   "figures": []
+  },
+  {
+   "id": "s7",
+   "title": "Conclusion and Visualizations",
+   "role": "conclusion",
+   "pages": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "summary": "This section confirms that the Transformer achieves new state-of-the-art results on WMT 2014 translation tasks while training significantly faster than recurrent or convolutional models. It highlights the model's ability to capture long-distance dependencies and structural patterns through specific attention heads. The authors outline future plans to extend the architecture to non-text modalities and improve generation efficiency.",
+   "figures": [
+    {
+     "id": "fig3",
+     "number": 3,
+     "caption": "An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb `making', completing the phrase `making...more difficult'. Attentions here shown only for the word `making'. Different colors represent different heads. Best viewed in color.",
+     "images": [
+      "figures/fig3-1.png"
+     ],
+     "sub_captions": [],
+     "page": 13
+    },
+    {
+     "id": "fig4",
+     "number": 4,
+     "caption": "Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word `its' for attention heads 5 and 6. Note that the attentions are very sharp for this word.",
+     "images": [
+      "figures/fig4-1.png",
+      "figures/fig4-2.png"
+     ],
+     "sub_captions": [],
+     "page": 14
+    },
+    {
+     "id": "fig5",
+     "number": 5,
+     "caption": "Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks.",
+     "images": [
+      "figures/fig5-1.png",
+      "figures/fig5-2.png"
+     ],
+     "sub_captions": [],
+     "page": 13
+    }
+   ]
+  }
+ ],
+ "views": {
+  "high": {
+   "kind": "high",
+   "sections": [
+    {
+     "section_id": "s0",
+     "title": "The big picture",
+     "beats": [
+      {
+       "id": "high.s0.b1",
+       "speaker": "narrator",
+       "narration": "Recurrent and convolutional sequence models hit a wall: they process tokens sequentially, limiting parallelism and long-range dependency capture. The Transformer eliminates both recurrence and convolutions, relying exclusively on attention mechanisms to model global relationships in a single pass.",
+       "subtitle": "Attention replaces recurrence and convolution",
+       "quote": "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
+       "focus": [
+        "seq_models",
+        "transformer_stack",
+        "attention_mech"
+       ],
+       "refs": [
+        "s0"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s0.b2",
+       "speaker": "narrator",
+       "narration": "This architectural shift yields superior translation quality while drastically reducing training costs. On WMT 2014 English-to-French, it achieves 41.8 BLEU in just 3.5 days on eight GPUs, a fraction of the compute required by prior state-of-the-art models.",
+       "subtitle": "Higher quality, lower compute cost",
+       "quote": null,
+       "focus": [
+        "wmt_results"
+       ],
+       "refs": [
+        "s0"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "A high-level schematic contrasting the sequential data flow of RNNs/CNNs with the parallel, attention-based global connectivity of the Transformer encoder-decoder stack."
+     },
+     "diagram": {
+      "id": "high-s0",
+      "type": "flow",
+      "title": "Transformer vs Sequential Models",
+      "caption": "The Transformer replaces sequential recurrence with parallel attention to achieve superior quality and efficiency.",
+      "direction": "LR",
+      "nodes": [
+       {
+        "id": "seq_models",
+        "label": "RNN/CNN Models",
+        "detail": "Sequential processing limits parallelism and long-range dependency capture.",
+        "kind": "concept",
+        "group": null
+       },
+       {
+        "id": "transformer_stack",
+        "label": "Transformer Stack",
+        "detail": "Encoder-decoder architecture based solely on attention mechanisms.",
+        "kind": "model",
+        "group": "transformer"
+       },
+       {
+        "id": "attention_mech",
+        "label": "Attention Mechanisms",
+        "detail": "Global connectivity allowing parallel processing of all tokens.",
+        "kind": "process",
+        "group": "transformer"
+       },
+       {
+        "id": "wmt_results",
+        "label": "WMT 2014 Results",
+        "detail": "Achieves 41.8 BLEU on English-to-French translation.",
+        "kind": "metric",
+        "group": null
+       }
+      ],
+      "edges": [
+       {
+        "source": "seq_models",
+        "target": "transformer_stack",
+        "label": "Replaced by"
+       },
+       {
+        "source": "transformer_stack",
+        "target": "attention_mech",
+        "label": "Uses"
+       },
+       {
+        "source": "attention_mech",
+        "target": "wmt_results",
+        "label": "Yields"
+       }
+      ],
+      "groups": [
+       {
+        "id": "transformer",
+        "label": "Transformer Architecture"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s1",
+     "title": "Introduction and Background",
+     "beats": [
+      {
+       "id": "high.s1.b1",
+       "speaker": "narrator",
+       "narration": "Recurrent networks process tokens sequentially, creating a hard bottleneck for parallelization. The Transformer removes this constraint by using attention to link all positions simultaneously, enabling massive speedups.",
+       "subtitle": "Eliminating sequential bottlenecks via parallel attention",
+       "quote": "In this work we propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on an attention mechanism to draw global dependencies between input and output.",
+       "focus": [
+        "rnn_seq",
+        "attn_global"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s1.b2",
+       "speaker": "narrator",
+       "narration": "Unlike convolutional models where connecting distant tokens requires more operations, the Transformer relates any two positions in constant time. Multi-head attention compensates for the resolution loss inherent in this averaging.",
+       "subtitle": "Constant-time dependency resolution vs. growing cost",
+       "quote": null,
+       "focus": [
+        "const_ops",
+        "multi_head"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "Compare sequential RNN data flow against parallel Transformer attention connections."
+     },
+     "diagram": {
+      "id": "high-s1",
+      "type": "flow",
+      "title": "RNN vs Transformer Flow",
+      "caption": "Transformer replaces sequential recurrence with parallel attention for constant-time global dependencies.",
+      "direction": "LR",
+      "nodes": [
+       {
+        "id": "rnn_seq",
+        "label": "Sequential RNN",
+        "detail": "Generates hidden states step-by-step, preventing parallelization within training examples.",
+        "kind": "model",
+        "group": "rnn_group"
+       },
+       {
+        "id": "attn_global",
+        "label": "Global Attention",
+        "detail": "Draws dependencies between all input and output positions simultaneously without recurrence.",
+        "kind": "process",
+        "group": "transformer_group"
+       },
+       {
+        "id": "const_ops",
+        "label": "Constant Ops",
+        "detail": "Relates any two positions in a constant number of operations, unlike linear/log growth in CNNs.",
+        "kind": "concept",
+        "group": "transformer_group"
+       },
+       {
+        "id": "multi_head",
+        "label": "Multi-Head Attention",
+        "detail": "Counteracts reduced effective resolution caused by averaging attention-weighted positions.",
+        "kind": "process",
+        "group": "transformer_group"
+       }
+      ],
+      "edges": [
+       {
+        "source": "rnn_seq",
+        "target": "attn_global",
+        "label": "Replaced by"
+       },
+       {
+        "source": "attn_global",
+        "target": "const_ops",
+        "label": "Enables"
+       },
+       {
+        "source": "const_ops",
+        "target": "multi_head",
+        "label": "Refined by"
+       }
+      ],
+      "groups": [
+       {
+        "id": "rnn_group",
+        "label": "Recurrent"
+       },
+       {
+        "id": "transformer_group",
+        "label": "Transformer"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s2",
+     "title": "Transformer Architecture",
+     "beats": [
+      {
+       "id": "high.s2.b1",
+       "speaker": "narrator",
+       "narration": "The architecture replaces recurrence with stacked self-attention and point-wise feed-forward layers. Since there is no convolution or recurrence to encode order, we inject positional information directly into the embeddings. This allows the model to process the entire sequence in parallel while retaining token order.",
+       "subtitle": "Parallel processing via injected positional encodings",
+       "quote": "Since our model contains no recurrence and no convolution, in order for the model to make use of the order of the sequence, we must inject some information about the relative or absolute position of the tokens in the sequence.",
+       "focus": [
+        "positional_encoding",
+        "encoder_stack"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s2.b2",
+       "speaker": "narrator",
+       "narration": "Each layer uses residual connections and layer normalization to stabilize training. The decoder adds a masking mechanism to its self-attention, ensuring that predictions for a position depend only on known previous outputs. This enforces the auto-regressive constraint without breaking parallelism during training.",
+       "subtitle": "Masking enforces causal dependencies in decoder",
+       "quote": null,
+       "focus": [
+        "residual_norm",
+        "decoder_masked_attention"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "Show the encoder-decoder stack with residual connections, layer norm, and the specific masking in the decoder self-attention."
+     },
+     "diagram": {
+      "id": "high-s2",
+      "type": "flow",
+      "title": "Transformer Encoder-Decoder Stack",
+      "caption": "Stacked attention and feed-forward layers with residual connections and decoder masking.",
+      "direction": "TB",
+      "nodes": [
+       {
+        "id": "positional_encoding",
+        "label": "Positional Encoding",
+        "detail": "Sinusoidal functions added to embeddings to inject sequence order.",
+        "kind": "data",
+        "group": null
+       },
+       {
+        "id": "encoder_stack",
+        "label": "Encoder Stack",
+        "detail": "Six layers of self-attention and feed-forward networks with residual connections.",
+        "kind": "model",
+        "group": "encoder_block"
+       },
+       {
+        "id": "decoder_masked_attention",
+        "label": "Masked Self-Attention",
+        "detail": "Prevents positions from attending to subsequent positions for auto-regressive generation.",
+        "kind": "process",
+        "group": "decoder_block"
+       },
+       {
+        "id": "decoder_ffn",
+        "label": "Feed-Forward Network",
+        "detail": "Position-wise fully connected network expanding to 2048 dimensions.",
+        "kind": "process",
+        "group": "decoder_block"
+       },
+       {
+        "id": "residual_norm",
+        "label": "Residual & Norm",
+        "detail": "LayerNorm(x + Sublayer(x)) applied around each sub-layer.",
+        "kind": "concept",
+        "group": null
+       }
+      ],
+      "edges": [
+       {
+        "source": "positional_encoding",
+        "target": "encoder_stack",
+        "label": "Input"
+       },
+       {
+        "source": "encoder_stack",
+        "target": "decoder_masked_attention",
+        "label": "Context"
+       },
+       {
+        "source": "decoder_masked_attention",
+        "target": "decoder_ffn",
+        "label": "Flow"
+       },
+       {
+        "source": "decoder_ffn",
+        "target": "residual_norm",
+        "label": "Output"
+       },
+       {
+        "source": "encoder_stack",
+        "target": "residual_norm",
+        "label": "Stabilize"
+       }
+      ],
+      "groups": [
+       {
+        "id": "encoder_block",
+        "label": "Encoder"
+       },
+       {
+        "id": "decoder_block",
+        "label": "Decoder"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s3",
+     "title": "Attention Mechanisms",
+     "beats": [
+      {
+       "id": "high.s3.b1",
+       "speaker": "narrator",
+       "narration": "The core operation is scaled dot-product attention. We compute the dot product of queries and keys, then divide by the square root of the key dimension. This scaling is critical because large dot products push the softmax function into regions with extremely small gradients, destabilizing training.",
+       "subtitle": "Scaling prevents softmax saturation",
+       "quote": "We suspect that for large values of $d_k$, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients",
+       "focus": [
+        "scaled_dot",
+        "softmax_weights"
+       ],
+       "refs": [
+        "s3"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s3.b2",
+       "speaker": "narrator",
+       "narration": "To capture diverse relationships, we use multi-head attention. This projects queries, keys, and values into multiple subspaces, allowing the model to jointly attend to different representation aspects. In the decoder, a mask sets illegal connections to negative infinity, preserving the auto-regressive property by blocking future information.",
+       "subtitle": "Multi-head attention and causal masking",
+       "quote": null,
+       "focus": [
+        "projections",
+        "causal_mask",
+        "concat_output"
+       ],
+       "refs": [
+        "s3"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "Show the data flow for Scaled Dot-Product Attention (Q, K, V to softmax to output) and the parallel structure of Multi-Head Attention with the causal mask in the decoder."
+     },
+     "diagram": {
+      "id": "high-s3",
+      "type": "flow",
+      "title": "Transformer Attention Flow",
+      "caption": "Multi-head attention projects inputs into subspaces, applies scaled dot-product with causal masking, and concatenates results.",
+      "direction": "LR",
+      "nodes": [
+       {
+        "id": "inputs",
+        "label": "Q, K, V",
+        "detail": "Input vectors for queries, keys, and values.",
+        "kind": "input",
+        "group": null
+       },
+       {
+        "id": "projections",
+        "label": "Linear Projections",
+        "detail": "Learned matrices project inputs into h parallel subspaces.",
+        "kind": "process",
+        "group": "multi_head"
+       },
+       {
+        "id": "scaled_dot",
+        "label": "Scaled Dot-Product",
+        "detail": "Computes QK^T / sqrt(d_k) to prevent softmax saturation.",
+        "kind": "process",
+        "group": "multi_head"
+       },
+       {
+        "id": "causal_mask",
+        "label": "Causal Mask",
+        "detail": "Sets illegal future connections to -infinity in the decoder.",
+        "kind": "decision",
+        "group": "multi_head"
+       },
+       {
+        "id": "softmax_weights",
+        "label": "Softmax Weights",
+        "detail": "Normalizes scores into probability distribution over values.",
+        "kind": "process",
+        "group": "multi_head"
+       },
+       {
+        "id": "concat_output",
+        "label": "Concat & Project",
+        "detail": "Concatenates head outputs and applies final linear projection.",
+        "kind": "output",
+        "group": null
+       }
+      ],
+      "edges": [
+       {
+        "source": "inputs",
+        "target": "projections",
+        "label": ""
+       },
+       {
+        "source": "projections",
+        "target": "scaled_dot",
+        "label": "h heads"
+       },
+       {
+        "source": "scaled_dot",
+        "target": "causal_mask",
+        "label": "scores"
+       },
+       {
+        "source": "causal_mask",
+        "target": "softmax_weights",
+        "label": "masked"
+       },
+       {
+        "source": "softmax_weights",
+        "target": "concat_output",
+        "label": "weighted V"
+       }
+      ],
+      "groups": [
+       {
+        "id": "multi_head",
+        "label": "Multi-Head Block"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s4",
+     "title": "Why Self-Attention",
+     "beats": [
+      {
+       "id": "high.s4.b1",
+       "speaker": "narrator",
+       "narration": "Self-attention connects all sequence positions with constant sequential operations, unlike recurrent layers which require linear time. This constant path length makes learning long-range dependencies significantly easier and more parallelizable.",
+       "subtitle": "Constant path length enables parallelism",
+       "quote": "As noted in Table 1, a self-attention layer connects all positions with a constant number of sequentially executed operations, whereas a recurrent layer requires $O(n)$ sequential operations.",
+       "focus": [
+        "Self-Attention",
+        "Recurrent"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s4.b2",
+       "speaker": "narrator",
+       "narration": "Computationally, self-attention beats recurrent layers when sequence length is smaller than dimensionality, a common case in translation. It also offers interpretability, with heads revealing syntactic and semantic structures.",
+       "subtitle": "Efficiency and interpretability advantages",
+       "quote": null,
+       "focus": [
+        "Self-Attention"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "table",
+      "brief": "Compare self-attention, recurrent, and convolutional layers by complexity, sequential operations, and maximum path length."
+     },
+     "diagram": {
+      "id": "high-s4",
+      "type": "table",
+      "title": "Layer Comparison Metrics",
+      "caption": "Self-attention offers constant path length and parallelism.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [
+       "Layer Type",
+       "Complexity",
+       "Sequential Ops",
+       "Max Path Length"
+      ],
+      "rows": [
+       [
+        "Self-Attention",
+        "O(n^2 * d)",
+        "O(1)",
+        "O(1)"
+       ],
+       [
+        "Recurrent",
+        "O(n * d^2)",
+        "O(n)",
+        "O(n)"
+       ],
+       [
+        "Convolutional",
+        "O(k * n * d^2)",
+        "O(1)",
+        "O(log_k(n))"
+       ]
+      ],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s5",
+     "title": "Training Details",
+     "beats": [
+      {
+       "id": "high.s5.b1",
+       "speaker": "narrator",
+       "narration": "Training the base model took 12 hours on eight P100 GPUs. This efficiency stems from the architecture's parallel nature, reducing the sequential bottlenecks of previous methods.",
+       "subtitle": "12-hour training on 8 GPUs",
+       "quote": "We trained our models on one machine with 8 NVIDIA P100 GPUs.",
+       "focus": [
+        "hardware_setup"
+       ],
+       "refs": [
+        "s5"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s5.b2",
+       "speaker": "narrator",
+       "narration": "The learning rate schedule ramps up linearly for the first 4,000 steps, then decays inversely with the square root of the step count.",
+       "subtitle": "Linear warmup, then inverse-square decay",
+       "quote": null,
+       "focus": [
+        "warmup_phase",
+        "decay_phase"
+       ],
+       "refs": [
+        "s5"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s5.b3",
+       "speaker": "narrator",
+       "narration": "Label smoothing with a value of 0.1 intentionally degrades perplexity by forcing the model to be less certain. This trade-off improves final accuracy and BLEU scores, acting as a regularizer that prevents overconfidence in the output distribution.",
+       "subtitle": "Label smoothing trades perplexity for accuracy",
+       "quote": "This hurts perplexity, as the model learns to be more unsure, but improves accuracy and BLEU score.",
+       "focus": [
+        "label_smoothing"
+       ],
+       "refs": [
+        "s5"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "A timeline showing the learning rate curve: linear increase for the first 4,000 steps, followed by a gradual inverse-square-root decay."
+     },
+     "diagram": {
+      "id": "high-s5",
+      "type": "flow",
+      "title": "Learning Rate Schedule",
+      "caption": "Training efficiency and the warmup-decay learning rate strategy.",
+      "direction": "LR",
+      "nodes": [
+       {
+        "id": "hardware_setup",
+        "label": "8 P100 GPUs",
+        "detail": "Base models trained in 12 hours on 8 NVIDIA P100 GPUs.",
+        "kind": "input",
+        "group": "training_env"
+       },
+       {
+        "id": "warmup_phase",
+        "label": "Linear Warmup",
+        "detail": "Learning rate increases linearly for the first 4,000 steps.",
+        "kind": "process",
+        "group": "lr_schedule"
+       },
+       {
+        "id": "decay_phase",
+        "label": "Inverse Decay",
+        "detail": "Learning rate decreases proportionally to the inverse square root of step number.",
+        "kind": "process",
+        "group": "lr_schedule"
+       },
+       {
+        "id": "label_smoothing",
+        "label": "Label Smoothing",
+        "detail": "Value of 0.1 improves accuracy and BLEU by reducing overconfidence.",
+        "kind": "concept",
+        "group": null
+       }
+      ],
+      "edges": [
+       {
+        "source": "hardware_setup",
+        "target": "warmup_phase",
+        "label": "Starts"
+       },
+       {
+        "source": "warmup_phase",
+        "target": "decay_phase",
+        "label": "After 4k steps"
+       },
+       {
+        "source": "decay_phase",
+        "target": "label_smoothing",
+        "label": "Regularizes"
+       }
+      ],
+      "groups": [
+       {
+        "id": "training_env",
+        "label": "Hardware"
+       },
+       {
+        "id": "lr_schedule",
+        "label": "LR Curve"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s6",
+     "title": "Experimental Results",
+     "beats": [
+      {
+       "id": "high.s6.b1",
+       "speaker": "narrator",
+       "narration": "The big Transformer hits 28.4 BLEU on English-to-German, beating previous state-of-the-art by over two points. Crucially, the base model achieves 27.3 BLEU using only 3.3e18 FLOPs, a fraction of the cost of competing recurrent models.",
+       "subtitle": "SOTA BLEU at a fraction of the training cost",
+       "quote": "Even our base model surpasses all previously published models and ensembles, at a fraction of the training cost of any of the competitive models.",
+       "focus": [
+        "Transformer (big)",
+        "Transformer (base)",
+        "GNMT + RL"
+       ],
+       "refs": [
+        "s6"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s6.b2",
+       "speaker": "narrator",
+       "narration": "Ablations show single-head attention drops performance by 0.9 BLEU, while reducing key size hurts quality. The architecture also generalizes to parsing, outperforming BerkeleyParser on WSJ with just 40K sentences.",
+       "subtitle": "Multi-head attention and generalizability to parsing",
+       "quote": null,
+       "focus": [
+        "Transformer (base)"
+       ],
+       "refs": [
+        "s6"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "bar",
+      "brief": "Compare BLEU scores and Training Cost (FLOPs) for Transformer (big/base) vs. GNMT and ConvS2S."
+     },
+     "diagram": {
+      "id": "high-s6",
+      "type": "bar",
+      "title": "Transformer vs. Baselines",
+      "caption": "Transformer achieves superior BLEU scores at a fraction of the training cost compared to GNMT and ConvS2S.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [
+       "GNMT + RL",
+       "ConvS2S",
+       "Transformer (base)",
+       "Transformer (big)"
+      ],
+      "series": [
+       {
+        "name": "BLEU (EN-DE)",
+        "values": [
+         24.6,
+         25.16,
+         27.3,
+         28.4
+        ]
+       },
+       {
+        "name": "Training Cost (FLOPs)",
+        "values": [
+         2.3e+19,
+         9.6e+18,
+         3.3e+18,
+         2.3e+19
+        ]
+       }
+      ],
+      "unit": "BLEU / FLOPs",
+      "higher_is_better": true,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s7",
+     "title": "Conclusion and Visualizations",
+     "beats": [
+      {
+       "id": "high.s7.b1",
+       "speaker": "narrator",
+       "narration": "The Transformer sets new state-of-the-art on WMT 2014 translation tasks, outperforming previous ensembles on English-to-German. Crucially, it trains significantly faster than recurrent or convolutional architectures, validating the efficiency of pure attention mechanisms.",
+       "subtitle": "SOTA performance with faster training",
+       "quote": "For translation tasks, the Transformer can be trained significantly faster than architectures based on recurrent or convolutional layers.",
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "high.s7.b2",
+       "speaker": "narrator",
+       "narration": "Visualizations reveal that specific attention heads specialize in distinct linguistic tasks. Some track long-distance dependencies, like linking verbs to distant objects, while others resolve anaphora. This specialization suggests the model decomposes complex syntactic structures into parallel, learnable components.",
+       "subtitle": "Attention heads specialize in syntax",
+       "quote": null,
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": false,
+      "type": "flow",
+      "brief": "No diagram needed; content is narrative conclusion and qualitative visualization description."
+     },
+     "diagram": null
+    }
+   ]
+  },
+  "deep": {
+   "kind": "deep",
+   "sections": [
+    {
+     "section_id": "s0",
+     "title": "The big picture",
+     "beats": [
+      {
+       "id": "deep.s0.b1",
+       "speaker": "narrator",
+       "narration": "Sequence transduction models have long relied on recurrence or convolutions, creating bottlenecks for parallelization. The Transformer eliminates these entirely, using only attention mechanisms to capture dependencies. This architectural shift allows for significantly more efficient training without sacrificing quality.",
+       "subtitle": "Replacing recurrence and convolutions with pure attention",
+       "quote": "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
+       "focus": [
+        "WMT 2014 English-to-German",
+        "WMT 2014 English-to-French"
+       ],
+       "refs": [
+        "s0"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s0.b2",
+       "speaker": "narrator",
+       "narration": "On WMT 2014 English-to-German, the model hits 28.4 BLEU, beating prior bests by over two points. For English-to-French, it sets a new single-model state-of-the-art at 41.8 BLEU. These results were achieved in just 3.5 days on eight GPUs, a fraction of previous training costs.",
+       "subtitle": "SOTA BLEU scores with reduced training time",
+       "quote": null,
+       "focus": [
+        "WMT 2014 English-to-German",
+        "WMT 2014 English-to-French"
+       ],
+       "refs": [
+        "s0"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "bar",
+      "brief": "Compare Transformer BLEU scores (28.4 EN-DE, 41.8 EN-FR) against previous best results to highlight the quality improvement."
+     },
+     "diagram": {
+      "id": "deep-s0",
+      "type": "bar",
+      "title": "Transformer BLEU Performance",
+      "caption": "Transformer achieves state-of-the-art BLEU scores on WMT 2014 translation tasks.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [
+       "WMT 2014 English-to-German",
+       "WMT 2014 English-to-French"
+      ],
+      "series": [
+       {
+        "name": "BLEU Score",
+        "values": [
+         28.4,
+         41.8
+        ]
+       }
+      ],
+      "unit": "BLEU",
+      "higher_is_better": true,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s1",
+     "title": "Introduction and Background",
+     "beats": [
+      {
+       "id": "deep.s1.b1",
+       "speaker": "narrator",
+       "narration": "Recurrent models compute hidden states sequentially, forcing a strict dependency on the previous step. This inherent seriality blocks parallelization within a single training example, creating a bottleneck for long sequences.",
+       "subtitle": "Sequential computation blocks parallelization",
+       "quote": null,
+       "focus": [
+        "Recurrent"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s1.b2",
+       "speaker": "narrator",
+       "narration": "The Transformer eliminates this recurrence entirely. It relies solely on attention mechanisms to capture global dependencies between input and output positions, removing the sequential constraint.",
+       "subtitle": "Attention replaces recurrence",
+       "quote": "In this work we propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on an attention mechanism to draw global dependencies between input and output.",
+       "focus": [
+        "Transformer"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s1.b3",
+       "speaker": "narrator",
+       "narration": "Convolutional alternatives like ByteNet reduce operations logarithmically with distance, but the Transformer achieves a constant number of operations to relate any two positions.",
+       "subtitle": "Constant cost for long-range dependencies",
+       "quote": null,
+       "focus": [
+        "Convolutional",
+        "Transformer"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s1.b4",
+       "speaker": "narrator",
+       "narration": "This constant cost comes at the price of reduced effective resolution due to averaging. Multi-Head Attention counteracts this by allowing the model to attend to different representation subspaces simultaneously.",
+       "subtitle": "Multi-Head Attention restores resolution",
+       "quote": "In the Transformer this is reduced to a constant number of operations, albeit at the cost of reduced effective resolution due to averaging attention-weighted positions, an effect we counteract with Multi-Head Attention as described in section 3.2.",
+       "focus": [
+        "Transformer"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s1.b5",
+       "speaker": "narrator",
+       "narration": "This architecture is the first transduction model to rely entirely on self-attention, without using sequence-aligned RNNs or convolution, enabling significantly more parallelization.",
+       "subtitle": "First pure self-attention transduction model",
+       "quote": null,
+       "focus": [
+        "Transformer"
+       ],
+       "refs": [
+        "s1"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "table",
+      "brief": "Compare RNN, Convolutional, and Transformer architectures on parallelization capability and operation cost relative to sequence distance."
+     },
+     "diagram": {
+      "id": "deep-s1",
+      "type": "table",
+      "title": "Architecture Parallelization Comparison",
+      "caption": "Transformer achieves constant operation cost for global dependencies, unlike sequential or distance-dependent alternatives.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [
+       "Architecture",
+       "Parallelization",
+       "Operation Cost vs Distance",
+       "Key Mechanism"
+      ],
+      "rows": [
+       [
+        "Recurrent",
+        "Precluded within examples",
+        "Sequential dependency",
+        "Hidden state h_t"
+       ],
+       [
+        "Convolutional",
+        "Parallel for all positions",
+        "Linear or Logarithmic",
+        "Convolutional building blocks"
+       ],
+       [
+        "Transformer",
+        "Significantly more parallelization",
+        "Constant number of operations",
+        "Self-attention mechanism"
+       ]
+      ],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s2",
+     "title": "Transformer Architecture",
+     "beats": [
+      {
+       "id": "deep.s2.b1",
+       "speaker": "narrator",
+       "narration": "The architecture stacks six identical encoder and decoder layers. Each layer wraps a multi-head self-attention mechanism and a position-wise feed-forward network in residual connections, followed by layer normalization to stabilize training.",
+       "subtitle": "Stacked layers with residual connections and normalization",
+       "quote": "The Transformer follows this overall architecture using stacked self-attention and point-wise, fully connected layers for both the encoder and decoder, shown in the left and right halves of Figure 1, respectively.",
+       "focus": [
+        "encoder_stack",
+        "enc_self_attn",
+        "enc_ffn"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s2.b2",
+       "speaker": "narrator",
+       "narration": "The decoder adds a third sub-layer for cross-attention over encoder outputs. It also applies masking to self-attention, ensuring each position only attends to previous tokens, which enforces auto-regressive generation.",
+       "subtitle": "Decoder masking enforces causal auto-regressive generation",
+       "quote": null,
+       "focus": [
+        "decoder_stack",
+        "dec_masked_attn",
+        "dec_cross_attn"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s2.b3",
+       "speaker": "narrator",
+       "narration": "The feed-forward network applies two linear transformations with a ReLU activation in between. It expands the dimensionality to 2048 before projecting back to 512, operating independently on each position.",
+       "subtitle": "Position-wise FFN expands to 2048 dims",
+       "quote": null,
+       "focus": [
+        "enc_ffn",
+        "dec_ffn"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s2.b4",
+       "speaker": "narrator",
+       "narration": "Since there is no recurrence or convolution, the model injects sequence order via sinusoidal positional encodings added to input embeddings. These use sine and cosine functions of different frequencies to represent token positions.",
+       "subtitle": "Sinusoidal encodings inject sequence order",
+       "quote": "Since our model contains no recurrence and no convolution, in order for the model to make use of the order of the sequence, we must inject some information about the relative or absolute position of the tokens in the sequence.",
+       "focus": [
+        "pos_enc"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s2.b5",
+       "speaker": "narrator",
+       "narration": "The authors chose sinusoidal encodings over learned embeddings because they hypothesize it allows the model to extrapolate to sequence lengths longer than those seen during training.",
+       "subtitle": "Sinusoidal choice enables length extrapolation",
+       "quote": null,
+       "focus": [
+        "pos_enc"
+       ],
+       "refs": [
+        "s2"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "Show the encoder-decoder stack with residual connections, layer norm, and the specific sub-layers (self-attention, cross-attention, FFN) in each block."
+     },
+     "diagram": {
+      "id": "deep-s2",
+      "type": "flow",
+      "title": "Transformer Encoder-Decoder Stack",
+      "caption": "Six stacked layers with residual connections, layer norm, and sinusoidal positional encodings.",
+      "direction": "TB",
+      "nodes": [
+       {
+        "id": "input_embed",
+        "label": "Input Embeddings",
+        "detail": "Learned token vectors of dimension d_model=512.",
+        "kind": "input",
+        "group": "encoder_stack"
+       },
+       {
+        "id": "pos_enc",
+        "label": "Positional Encoding",
+        "detail": "Sinusoidal functions added to embeddings to inject sequence order.",
+        "kind": "process",
+        "group": "encoder_stack"
+       },
+       {
+        "id": "enc_self_attn",
+        "label": "Multi-Head Self-Attention",
+        "detail": "First sub-layer in encoder, wrapped in residual connection and layer norm.",
+        "kind": "model",
+        "group": "encoder_stack"
+       },
+       {
+        "id": "enc_ffn",
+        "label": "Position-wise FFN",
+        "detail": "Two linear transformations with ReLU, expanding to d_ff=2048 then back to 512.",
+        "kind": "model",
+        "group": "encoder_stack"
+       },
+       {
+        "id": "dec_masked_attn",
+        "label": "Masked Self-Attention",
+        "detail": "Decoder sub-layer preventing attention to subsequent positions for auto-regressive generation.",
+        "kind": "model",
+        "group": "decoder_stack"
+       },
+       {
+        "id": "dec_cross_attn",
+        "label": "Cross-Attention",
+        "detail": "Third decoder sub-layer attending over encoder stack outputs.",
+        "kind": "model",
+        "group": "decoder_stack"
+       },
+       {
+        "id": "dec_ffn",
+        "label": "Position-wise FFN",
+        "detail": "Identical feed-forward network structure as encoder, applied per position.",
+        "kind": "model",
+        "group": "decoder_stack"
+       },
+       {
+        "id": "output_softmax",
+        "label": "Linear + Softmax",
+        "detail": "Converts decoder output to predicted next-token probabilities.",
+        "kind": "output",
+        "group": null
+       }
+      ],
+      "edges": [
+       {
+        "source": "input_embed",
+        "target": "pos_enc",
+        "label": "sum"
+       },
+       {
+        "source": "pos_enc",
+        "target": "enc_self_attn",
+        "label": ""
+       },
+       {
+        "source": "enc_self_attn",
+        "target": "enc_ffn",
+        "label": "residual+norm"
+       },
+       {
+        "source": "enc_ffn",
+        "target": "dec_masked_attn",
+        "label": "encoder output"
+       },
+       {
+        "source": "dec_masked_attn",
+        "target": "dec_cross_attn",
+        "label": "residual+norm"
+       },
+       {
+        "source": "dec_cross_attn",
+        "target": "dec_ffn",
+        "label": "residual+norm"
+       },
+       {
+        "source": "dec_ffn",
+        "target": "output_softmax",
+        "label": ""
+       }
+      ],
+      "groups": [
+       {
+        "id": "encoder_stack",
+        "label": "Encoder (N=6)"
+       },
+       {
+        "id": "decoder_stack",
+        "label": "Decoder (N=6)"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s3",
+     "title": "Attention Mechanisms",
+     "beats": [
+      {
+       "id": "deep.s3.b1",
+       "speaker": "narrator",
+       "narration": "The core operation is Scaled Dot-Product Attention. You compute the dot product of queries and keys, then divide by the square root of the key dimension before applying softmax. This scaling is critical because large dot products push the softmax into regions with vanishing gradients, destabilizing training.",
+       "subtitle": "Scaling prevents softmax saturation",
+       "quote": "We suspect that for large values of $d_k$, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients",
+       "focus": [
+        "attn_head"
+       ],
+       "refs": [
+        "s3"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s3.b2",
+       "speaker": "narrator",
+       "narration": "Instead of one high-dimensional attention head, the model projects queries, keys, and values into multiple lower-dimensional subspaces. These heads run in parallel, allowing the model to jointly attend to different representation aspects. The outputs are concatenated and projected back to the model dimension.",
+       "subtitle": "Multi-head attention captures diverse subspaces",
+       "quote": null,
+       "focus": [
+        "heads",
+        "concat",
+        "final_proj"
+       ],
+       "refs": [
+        "s3"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s3.b3",
+       "speaker": "narrator",
+       "narration": "In the decoder, self-attention must preserve the auto-regressive property. To prevent attending to future tokens, the model masks illegal connections by setting their scores to negative infinity before the softmax. This ensures each position only attends to previous positions, maintaining causal order.",
+       "subtitle": "Masking enforces causal attention",
+       "quote": "We implement this inside of scaled dot-product attention by masking out (setting to $-\\infty$) all values in the input of the softmax which correspond to illegal connections.",
+       "focus": [
+        "attn_head"
+       ],
+       "refs": [
+        "s3"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "flow",
+      "brief": "Show the data flow for Multi-Head Attention: parallel heads processing Q, K, V, followed by concatenation and final projection."
+     },
+     "diagram": {
+      "id": "deep-s3",
+      "type": "flow",
+      "title": "Multi-Head Attention Data Flow",
+      "caption": "Parallel heads project Q, K, V into subspaces, compute attention, and concatenate outputs for final projection.",
+      "direction": "LR",
+      "nodes": [
+       {
+        "id": "input_qkv",
+        "label": "Q, K, V",
+        "detail": "Input matrices of dimension d_model.",
+        "kind": "input",
+        "group": null
+       },
+       {
+        "id": "proj_q",
+        "label": "QW^Q_i",
+        "detail": "Linear projection of queries to d_k dimension.",
+        "kind": "process",
+        "group": "heads"
+       },
+       {
+        "id": "proj_k",
+        "label": "KW^K_i",
+        "detail": "Linear projection of keys to d_k dimension.",
+        "kind": "process",
+        "group": "heads"
+       },
+       {
+        "id": "proj_v",
+        "label": "VW^V_i",
+        "detail": "Linear projection of values to d_v dimension.",
+        "kind": "process",
+        "group": "heads"
+       },
+       {
+        "id": "attn_head",
+        "label": "Scaled Dot-Product",
+        "detail": "Computes softmax(QK^T/sqrt(d_k))V for each head.",
+        "kind": "model",
+        "group": "heads"
+       },
+       {
+        "id": "concat",
+        "label": "Concat(heads)",
+        "detail": "Concatenates outputs of all h parallel heads.",
+        "kind": "process",
+        "group": null
+       },
+       {
+        "id": "final_proj",
+        "label": "W^O Projection",
+        "detail": "Projects concatenated output to d_model dimension.",
+        "kind": "process",
+        "group": null
+       },
+       {
+        "id": "output",
+        "label": "MultiHead Output",
+        "detail": "Final d_model dimensional output vector.",
+        "kind": "output",
+        "group": null
+       }
+      ],
+      "edges": [
+       {
+        "source": "input_qkv",
+        "target": "proj_q",
+        "label": ""
+       },
+       {
+        "source": "input_qkv",
+        "target": "proj_k",
+        "label": ""
+       },
+       {
+        "source": "input_qkv",
+        "target": "proj_v",
+        "label": ""
+       },
+       {
+        "source": "proj_q",
+        "target": "attn_head",
+        "label": ""
+       },
+       {
+        "source": "proj_k",
+        "target": "attn_head",
+        "label": ""
+       },
+       {
+        "source": "proj_v",
+        "target": "attn_head",
+        "label": ""
+       },
+       {
+        "source": "attn_head",
+        "target": "concat",
+        "label": "h heads"
+       },
+       {
+        "source": "concat",
+        "target": "final_proj",
+        "label": ""
+       },
+       {
+        "source": "final_proj",
+        "target": "output",
+        "label": ""
+       }
+      ],
+      "groups": [
+       {
+        "id": "heads",
+        "label": "Parallel Heads"
+       }
+      ],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s4",
+     "title": "Why Self-Attention",
+     "beats": [
+      {
+       "id": "deep.s4.b1",
+       "speaker": "narrator",
+       "narration": "The core advantage of self-attention is parallelism. While recurrent layers require O(n) sequential steps to process a sequence, self-attention connects all positions with O(1) sequential operations. This allows the entire layer to be computed simultaneously on a GPU.",
+       "subtitle": "Self-attention enables full parallelization",
+       "quote": "As noted in Table 1, a self-attention layer connects all positions with a constant number of sequentially executed operations, whereas a recurrent layer requires $O(n)$ sequential operations.",
+       "focus": [
+        "Self-Attention",
+        "Recurrent"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s4.b2",
+       "speaker": "narrator",
+       "narration": "Computationally, self-attention is faster than recurrence when sequence length n is less than dimension d. This condition holds for most machine translation tasks using subword representations, making the quadratic complexity acceptable for the gain in speed.",
+       "subtitle": "Faster than RNNs when n < d",
+       "quote": null,
+       "focus": [
+        "Self-Attention",
+        "Recurrent"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s4.b3",
+       "speaker": "narrator",
+       "narration": "Path length determines how easily long-range dependencies are learned. Self-attention has a maximum path length of O(1), whereas convolutional layers require O(log_k(n)) or more stacked layers to connect distant positions. Shorter paths facilitate gradient flow and learning.",
+       "subtitle": "Constant path length aids long-range learning",
+       "quote": null,
+       "focus": [
+        "Self-Attention",
+        "Convolutional"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s4.b4",
+       "speaker": "narrator",
+       "narration": "For very long sequences, standard self-attention's O(n^2) cost becomes prohibitive. A restricted variant limits attention to a neighborhood of size r, increasing the path length to O(n/r). This trades some global connectivity for linear complexity, suitable for high-resolution data.",
+       "subtitle": "Restricted attention for long sequences",
+       "quote": null,
+       "focus": [
+        "Restricted Self-Attention"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s4.b5",
+       "speaker": "narrator",
+       "narration": "Beyond efficiency, self-attention offers interpretability. Unlike black-box recurrence, attention heads can be inspected to reveal specific behaviors. Many heads exhibit patterns related to syntactic and semantic structures, providing insight into how the model processes language.",
+       "subtitle": "Attention heads reveal syntactic structure",
+       "quote": "Not only do individual attention heads clearly learn to perform different tasks, many appear to exhibit behavior related to the syntactic and semantic structure of the sentences.",
+       "focus": [
+        "Self-Attention"
+       ],
+       "refs": [
+        "s4"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "table",
+      "brief": "Comparison table of Self-Attention, Recurrent, and Convolutional layers showing Complexity, Sequential Operations, and Maximum Path Length."
+     },
+     "diagram": {
+      "id": "deep-s4",
+      "type": "table",
+      "title": "Layer Complexity Comparison",
+      "caption": "Self-attention offers constant sequential operations and path length.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [
+       "Layer Type",
+       "Complexity per Layer",
+       "Sequential Operations",
+       "Maximum Path Length"
+      ],
+      "rows": [
+       [
+        "Self-Attention",
+        "O(n^2 · d)",
+        "O(1)",
+        "O(1)"
+       ],
+       [
+        "Recurrent",
+        "O(n · d^2)",
+        "O(n)",
+        "O(n)"
+       ],
+       [
+        "Convolutional",
+        "O(k · n · d^2)",
+        "O(1)",
+        "O(log_k(n))"
+       ],
+       [
+        "Restricted Self-Attention",
+        "O(r · n · d)",
+        "O(1)",
+        "O(n/r)"
+       ]
+      ],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s5",
+     "title": "Training Details",
+     "beats": [
+      {
+       "id": "deep.s5.b1",
+       "speaker": "narrator",
+       "narration": "Training ran on eight P100 GPUs. The base model finished in twelve hours, while the big model took three and a half days. This efficiency stems from the parallelizable attention mechanism replacing sequential recurrence.",
+       "subtitle": "8 P100 GPUs: 12h base, 3.5 days big",
+       "quote": "We trained our models on one machine with 8 NVIDIA P100 GPUs.",
+       "focus": [],
+       "refs": [
+        "s5"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s5.b2",
+       "speaker": "narrator",
+       "narration": "The learning rate follows a specific schedule. It increases linearly for the first four thousand steps, then decays inversely with the square root of the step number. This stabilizes early training before refining weights.",
+       "subtitle": "Linear warmup, then inverse square root decay",
+       "quote": null,
+       "focus": [
+        "step\\_num",
+        "warmup\\_steps"
+       ],
+       "refs": [
+        "s5"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s5.b3",
+       "speaker": "narrator",
+       "narration": "Regularization uses residual dropout at zero point one on sub-layer outputs. Label smoothing at zero point one also applies. While this increases perplexity, it improves final accuracy and BLEU scores by preventing overconfidence.",
+       "subtitle": "Dropout and label smoothing trade perplexity for accuracy",
+       "quote": "This hurts perplexity, as the model learns to be more unsure, but improves accuracy and BLEU score.",
+       "focus": [],
+       "refs": [
+        "s5"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "equation",
+      "brief": "Visualize the learning rate formula, highlighting the warmup phase and the inverse square root decay phase."
+     },
+     "diagram": {
+      "id": "deep-s5",
+      "type": "equation",
+      "title": "Transformer Learning Rate Schedule",
+      "caption": "The learning rate increases linearly during warmup and then decays inversely with the square root of the step number.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [],
+      "series": [],
+      "unit": "",
+      "higher_is_better": null,
+      "columns": [],
+      "rows": [],
+      "latex": "lrate = d_{\\text{model}}^{-0.5} \\cdot \\min(step\\_num^{-0.5}, step\\_num \\cdot warmup\\_steps^{-1.5})",
+      "terms": [
+       {
+        "symbol": "lrate",
+        "meaning": "The dynamic learning rate used for the current training step."
+       },
+       {
+        "symbol": "d_{\\text{model}}",
+        "meaning": "The dimension of the model, scaling the overall magnitude of the learning rate."
+       },
+       {
+        "symbol": "step\\_num",
+        "meaning": "The current number of training steps completed."
+       },
+       {
+        "symbol": "warmup\\_steps",
+        "meaning": "The number of initial steps (4000) during which the learning rate increases linearly."
+       }
+      ]
+     }
+    },
+    {
+     "section_id": "s6",
+     "title": "Experimental Results",
+     "beats": [
+      {
+       "id": "deep.s6.b1",
+       "speaker": "narrator",
+       "narration": "On WMT 2014 English-to-German, the big Transformer hits 28.4 BLEU, beating the best previous ensembles by over two points. This new state-of-the-art was achieved with significantly lower training costs than recurrent or convolutional baselines.",
+       "subtitle": "New SOTA: 28.4 BLEU on EN-DE",
+       "quote": "On the WMT 2014 English-to-German translation task, the big transformer model (Transformer (big) in Table 2) outperforms the best previously reported models (including ensembles) by more than $2.0$ BLEU, establishing a new state-of-the-art BLEU score of $28.4$.",
+       "focus": [
+        "Transformer (big)"
+       ],
+       "refs": [
+        "s6"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s6.b2",
+       "speaker": "narrator",
+       "narration": "The base model also outperforms all prior single models and ensembles. It uses only 3.3 times 10 to the 18th FLOPs, a fraction of the compute required by competitive architectures like GNMT or ConvS2S.",
+       "subtitle": "Base model efficiency: 3.3e18 FLOPs",
+       "quote": null,
+       "focus": [
+        "Transformer (base)",
+        "GNMT + RL",
+        "ConvS2S"
+       ],
+       "refs": [
+        "s6"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s6.b3",
+       "speaker": "narrator",
+       "narration": "Ablations show single-head attention drops performance by 0.9 BLEU. Reducing key dimension size also hurts quality, suggesting dot-product compatibility is non-trivial. Learned positional embeddings perform nearly identically to sinusoidal ones.",
+       "subtitle": "Ablations: Heads, key size, position",
+       "quote": null,
+       "focus": [
+        "Transformer (base)"
+       ],
+       "refs": [
+        "s6"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s6.b4",
+       "speaker": "narrator",
+       "narration": "Generalization holds for parsing. A 4-layer Transformer achieves 92.7 F1 on WSJ semi-supervised parsing. It beats the BerkeleyParser even when training only on the WSJ training set, outperforming RNN sequence-to-sequence models in low-data regimes.",
+       "subtitle": "Parsing: 92.7 F1 on WSJ",
+       "quote": "In contrast to RNN sequence-to-sequence models [37], the Transformer outperforms the BerkeleyParser [29] even when training only on the WSJ training set of 40K sentences.",
+       "focus": [
+        "Transformer (base)"
+       ],
+       "refs": [
+        "s6"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": true,
+      "type": "bar",
+      "brief": "Compare BLEU scores and Training Cost (FLOPs) for Transformer (big), Transformer (base), and top baselines (GNMT, ConvS2S) on EN-DE."
+     },
+     "diagram": {
+      "id": "deep-s6",
+      "type": "bar",
+      "title": "EN-DE BLEU vs Cost",
+      "caption": "Transformer achieves superior BLEU scores at a fraction of the training cost compared to GNMT and ConvS2S.",
+      "direction": "LR",
+      "nodes": [],
+      "edges": [],
+      "groups": [],
+      "categories": [
+       "GNMT + RL",
+       "ConvS2S",
+       "Transformer (base)",
+       "Transformer (big)"
+      ],
+      "series": [
+       {
+        "name": "BLEU",
+        "values": [
+         24.6,
+         25.16,
+         27.3,
+         28.4
+        ]
+       },
+       {
+        "name": "Training Cost (FLOPs)",
+        "values": [
+         2.3e+19,
+         9.6e+18,
+         3.3e+18,
+         2.3e+19
+        ]
+       }
+      ],
+      "unit": "BLEU / FLOPs",
+      "higher_is_better": true,
+      "columns": [],
+      "rows": [],
+      "latex": "",
+      "terms": []
+     }
+    },
+    {
+     "section_id": "s7",
+     "title": "Conclusion and Visualizations",
+     "beats": [
+      {
+       "id": "deep.s7.b1",
+       "speaker": "narrator",
+       "narration": "The core contribution is replacing recurrent layers with multi-headed self-attention. This eliminates sequential dependencies, allowing the model to train significantly faster than previous architectures.",
+       "subtitle": "Self-attention replaces recurrence for speed",
+       "quote": "In this work, we presented the Transformer, the first sequence transduction model based entirely on attention, replacing the recurrent layers most commonly used in encoder-decoder architectures with multi-headed self-attention.",
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s7.b2",
+       "speaker": "narrator",
+       "narration": "On WMT 2014 English-to-German, the best model outperforms all previously reported ensembles. It also sets a new state of the art on English-to-French translation.",
+       "subtitle": "SOTA on WMT 2014 translation tasks",
+       "quote": null,
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s7.b3",
+       "speaker": "narrator",
+       "narration": "Visualizations show specific heads in layer 5 capturing long-distance dependencies. For instance, heads link the verb 'making' to its distant object, completing the phrase 'making...more difficult'.",
+       "subtitle": "Heads capture long-range syntactic links",
+       "quote": "Many of the attention heads attend to a distant dependency of the verb `making', completing the phrase `making...more difficult'.",
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s7.b4",
+       "speaker": "narrator",
+       "narration": "Other heads exhibit sharp attention patterns for anaphora resolution, such as resolving the pronoun 'its'. This indicates different heads specialize in distinct structural tasks.",
+       "subtitle": "Specialized heads for anaphora resolution",
+       "quote": null,
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      },
+      {
+       "id": "deep.s7.b5",
+       "speaker": "narrator",
+       "narration": "Future work targets non-text modalities like images and video. The authors plan to investigate local, restricted attention mechanisms to handle these large inputs efficiently.",
+       "subtitle": "Extending to multimodal and large inputs",
+       "quote": null,
+       "focus": [],
+       "refs": [
+        "s7"
+       ],
+       "audio": null,
+       "source": null
+      }
+     ],
+     "diagram_brief": {
+      "needed": false,
+      "type": "flow",
+      "brief": "No diagram needed; content is narrative summary and qualitative visualization description."
+     },
+     "diagram": null
+    }
+   ]
+  }
+ },
+ "graph": {
+  "center": "this-work",
+  "nodes": [
+   {
+    "id": "this-work",
+    "label": "Transformer",
+    "type": "this_work",
+    "description": "A new simple network architecture based solely on attention mechanisms that dispenses with recurrence and convolutions.",
+    "sections": [
+     "s0",
+     "s1",
+     "s2",
+     "s3",
+     "s4",
+     "s5",
+     "s6",
+     "s7"
+    ],
+    "evidence": "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms",
+    "aliases": [],
+    "mentions": 9
+   },
+   {
+    "id": "anaphora-resolution",
+    "label": "anaphora resolution",
+    "type": "concept",
+    "description": "A linguistic behavior observed in specific attention heads within the Transformer's encoder.",
+    "sections": [
+     "s7"
+    ],
+    "evidence": "apparently involved in anaphora resolution",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "decoder",
+    "label": "Decoder",
+    "type": "concept",
+    "description": "A component composed of a stack of N=6 identical layers that generates output sequences one element at a time.",
+    "sections": [
+     "s2"
+    ],
+    "evidence": "The decoder is also composed of a stack of $N=6$ identical layer",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "encoder",
+    "label": "Encoder",
+    "type": "concept",
+    "description": "A component composed of a stack of N=6 identical layers that maps input sequences to continuous representations.",
+    "sections": [
+     "s2"
+    ],
+    "evidence": "The encoder is composed of a stack of $N=6$ identical layer",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "long-range-dependencies",
+    "label": "Long-range dependencies",
+    "type": "concept",
+    "description": "A key challenge in sequence transduction tasks affected by the length of paths signals traverse in the network.",
+    "sections": [
+     "s4"
+    ],
+    "evidence": "Learning long-range dependencies is a key challenge in many sequence transduction tasks",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "penn-treebank",
+    "label": "Penn Treebank",
+    "type": "dataset",
+    "description": "The dataset containing the Wall Street Journal portion used for training the parser.",
+    "sections": [
+     "s6"
+    ],
+    "evidence": "Wall Street Journal (WSJ) portion of the Penn Treebank",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "wmt-2014-english-to-french",
+    "label": "WMT 2014 English-to-French",
+    "type": "dataset",
+    "description": "A machine translation task where the Transformer established a new single-model state-of-the-art BLEU score of 41.8.",
+    "sections": [
+     "s0",
+     "s5",
+     "s6",
+     "s7"
+    ],
+    "evidence": "On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8",
+    "aliases": [
+     "WMT 2014 English-French dataset",
+     "WMT 2014 English-to-French translation task"
+    ],
+    "mentions": 7
+   },
+   {
+    "id": "wmt-2014-english-to-german",
+    "label": "WMT 2014 English-to-German",
+    "type": "dataset",
+    "description": "A machine translation task used to evaluate the Transformer, where it achieved a BLEU score of 28.4.",
+    "sections": [
+     "s0",
+     "s5",
+     "s6",
+     "s7"
+    ],
+    "evidence": "Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task",
+    "aliases": [
+     "WMT 2014 English-German dataset",
+     "WMT 2014 English-to-German translation task"
+    ],
+    "mentions": 7
+   },
+   {
+    "id": "convolutional",
+    "label": "Convolutional",
+    "type": "method",
+    "description": "A layer type that does not connect all pairs of input and output positions with a single layer if kernel width k < n.",
+    "sections": [
+     "s4"
+    ],
+    "evidence": "single convolutional layer with kernel width $k < n$ does not connect all pairs of input and output positions",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "multi-head-attention",
+    "label": "Multi-Head Attention",
+    "type": "method",
+    "description": "A mechanism that projects queries, keys, and values into multiple subspaces to allow the model to jointly attend to different representation aspects.",
+    "sections": [
+     "s0",
+     "s1",
+     "s3"
+    ],
+    "evidence": "It introduces Multi-Head Attention, which projects queries, keys, and values into multiple subspaces",
+    "aliases": [],
+    "mentions": 3
+   },
+   {
+    "id": "multi-head-self-attention",
+    "label": "Multi-head self-attention",
+    "type": "method",
+    "description": "A mechanism used as the first sub-layer in each encoder layer and as a sub-layer in the decoder.",
+    "sections": [
+     "s2"
+    ],
+    "evidence": "The first is a multi-head self-attention mechanism",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "position-wise-feed-forward-networks",
+    "label": "Position-wise Feed-Forward Networks",
+    "type": "method",
+    "description": "A fully connected feed-forward network applied to each position separately, consisting of two linear transformations with a ReLU activation.",
+    "sections": [
+     "s2"
+    ],
+    "evidence": "each of the layers in our encoder and decoder contains a fully connected feed-forward network",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "recurrent",
+    "label": "Recurrent",
+    "type": "method",
+    "description": "A layer type requiring O(n) sequential operations and having a maximum path length of O(n).",
+    "sections": [
+     "s4"
+    ],
+    "evidence": "a recurrent layer requires $O(n)$ sequential operatio",
+    "aliases": [],
+    "mentions": 1
+   },
+   {
+    "id": "scaled-dot-product-attention",
+    "label": "Scaled Dot-Product Attention",
+    "type": "method",
+    "description": "An attention mechanism where dot products are scaled by the square root of the key dimension to prevent softmax saturation.",
+    "sections": [
+     "s0",
+     "s3"
+    ],
+    "evidence": "This section defines the Scaled Dot-Product Attention mechanism",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "self-attention",
+    "label": "Self-Attention",
+    "type": "method",
+    "description": "An attention mechanism relating different positions of a single sequence in order to compute a representation of the sequence.",
+    "sections": [
+     "s1",
+     "s3",
+     "s4"
+    ],
+    "evidence": "Self-attention, sometimes called intra-attention is an attention mechanism relating different positions of a single sequence",
+    "aliases": [
+     "Self-Attention (restricted)",
+     "Self-attention"
+    ],
+    "mentions": 4
+   },
+   {
+    "id": "bleu",
+    "label": "BLEU",
+    "type": "metric",
+    "description": "The evaluation metric used to measure translation quality, where the Transformer improved over existing best results by over 2 points on English-to-German.",
+    "sections": [
+     "s0",
+     "s6"
+    ],
+    "evidence": "Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "additive-attention",
+    "label": "Additive Attention",
+    "type": "prior_work",
+    "description": "A commonly used attention function that computes compatibility using a feed-forward network with a single hidden layer.",
+    "sections": [
+     "s3"
+    ],
+    "evidence": "Additive attention computes the compatibility function using a feed-forward network with a single hidden layer",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "bytenet",
+    "label": "ByteNet",
+    "type": "prior_work",
+    "description": "A model using convolutional neural networks where the number of operations to relate signals grows logarithmically with distance.",
+    "sections": [
+     "s1",
+     "s6"
+    ],
+    "evidence": "ByteNet [18] and ConvS2S [9], all of which use convolutional neural networks",
+    "aliases": [],
+    "mentions": 4
+   },
+   {
+    "id": "convolutional-neural-networks",
+    "label": "Convolutional Neural Networks",
+    "type": "prior_work",
+    "description": "Sequence transduction models that include an encoder and decoder but are contrasted with the Transformer's constant operational cost for relating distant positions.",
+    "sections": [
+     "s0"
+    ],
+    "evidence": "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks",
+    "aliases": [
+     "Convolutional neural networks"
+    ],
+    "mentions": 2
+   },
+   {
+    "id": "convs2s",
+    "label": "ConvS2S",
+    "type": "prior_work",
+    "description": "A model using convolutional neural networks where the number of operations to relate signals grows linearly with distance.",
+    "sections": [
+     "s1",
+     "s6"
+    ],
+    "evidence": "ByteNet [18] and ConvS2S [9], all of which use convolutional neural networks",
+    "aliases": [],
+    "mentions": 4
+   },
+   {
+    "id": "dilated-convolutions",
+    "label": "Dilated convolutions",
+    "type": "prior_work",
+    "description": "A convolutional approach requiring O(log_k(n)) layers to connect all positions, increasing path length.",
+    "sections": [
+     "s4"
+    ],
+    "evidence": "$O(log_k(n))$ in the case of dilated convolutions [18]",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "dot-product-multiplicative-attention",
+    "label": "Dot-product (multiplicative) Attention",
+    "type": "prior_work",
+    "description": "An attention mechanism identical to the proposed method except for the scaling factor, which is faster and more space-efficient in practice.",
+    "sections": [
+     "s3"
+    ],
+    "evidence": "Dot-product attention is identical to our algorithm, except for the scaling factor",
+    "aliases": [
+     "Dot-Product Attention"
+    ],
+    "mentions": 2
+   },
+   {
+    "id": "dropout",
+    "label": "dropout",
+    "type": "prior_work",
+    "description": "A regularization technique applied to sub-layer outputs and embeddings.",
+    "sections": [
+     "s5"
+    ],
+    "evidence": "We apply dropout",
+    "aliases": [
+     "Dropout"
+    ],
+    "mentions": 2
+   },
+   {
+    "id": "end-to-end-memory-networks",
+    "label": "End-to-end memory networks",
+    "type": "prior_work",
+    "description": "Models based on a recurrent attention mechanism instead of sequence-aligned recurrence.",
+    "sections": [
+     "s1"
+    ],
+    "evidence": "End-to-end memory networks are based on a recurrent attention mechanism instead of sequence-aligned recurrence",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "extended-neural-gpu",
+    "label": "Extended Neural GPU",
+    "type": "prior_work",
+    "description": "A model that uses convolutional neural networks to compute hidden representations in parallel for all input and output positions.",
+    "sections": [
+     "s1"
+    ],
+    "evidence": "The goal of reducing sequential computation also forms the foundation of the Extended Neural GPU [16]",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "gnmt-rl",
+    "label": "GNMT + RL",
+    "type": "prior_work",
+    "description": "A previous state-of-the-art model compared against the Transformer in translation tasks.",
+    "sections": [
+     "s6"
+    ],
+    "evidence": "",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "label-smoothing",
+    "label": "label smoothing",
+    "type": "prior_work",
+    "description": "A regularization technique employed during training that improves accuracy and BLEU score.",
+    "sections": [
+     "s5"
+    ],
+    "evidence": "we employed label smoothing",
+    "aliases": [
+     "Label smoothing"
+    ],
+    "mentions": 2
+   },
+   {
+    "id": "layer-normalization",
+    "label": "Layer normalization",
+    "type": "prior_work",
+    "description": "A normalization technique applied after each sub-layer and residual connection.",
+    "sections": [
+     "s2"
+    ],
+    "evidence": "followed by layer normalization [1]",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "moe",
+    "label": "MoE",
+    "type": "prior_work",
+    "description": "A Mixture of Experts model compared against the Transformer in translation tasks.",
+    "sections": [
+     "s6"
+    ],
+    "evidence": "",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "recurrent-layers",
+    "label": "recurrent layers",
+    "type": "prior_work",
+    "description": "The common architectural component in encoder-decoder models that the Transformer replaces.",
+    "sections": [
+     "s7"
+    ],
+    "evidence": "replacing the recurrent layers most commonly used in encoder-decoder architectures",
+    "aliases": [
+     "Recurrent layers"
+    ],
+    "mentions": 2
+   },
+   {
+    "id": "recurrent-neural-networks",
+    "label": "Recurrent neural networks",
+    "type": "prior_work",
+    "description": "Dominant sequence transduction models characterized by inherent sequential computation that acts as a bottleneck for parallelization.",
+    "sections": [
+     "s0",
+     "s1"
+    ],
+    "evidence": "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks",
+    "aliases": [
+     "Recurrent Neural Networks"
+    ],
+    "mentions": 3
+   },
+   {
+    "id": "residual-connection",
+    "label": "Residual connection",
+    "type": "prior_work",
+    "description": "A connection employed around each sub-layer to facilitate the flow of information, followed by layer normalization.",
+    "sections": [
+     "s2"
+    ],
+    "evidence": "We employ a residual connection [11] around each of the two sub-layers",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "separable-convolutions",
+    "label": "Separable convolutions",
+    "type": "prior_work",
+    "description": "A technique that decreases the computational complexity of convolutional layers considerably.",
+    "sections": [
+     "s4"
+    ],
+    "evidence": "Separable convolutions [6], however, decrease the complexity considerably",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "english-constituency-parsing",
+    "label": "English constituency parsing",
+    "type": "task",
+    "description": "A task used to demonstrate that the Transformer generalizes well to other domains beyond machine translation.",
+    "sections": [
+     "s0",
+     "s6"
+    ],
+    "evidence": "We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing",
+    "aliases": [
+     "English Constituency Parsing"
+    ],
+    "mentions": 3
+   },
+   {
+    "id": "sequence-transduction",
+    "label": "Sequence transduction",
+    "type": "task",
+    "description": "The general task of mapping an input sequence of symbols to an output sequence of symbols, which the Transformer addresses.",
+    "sections": [
+     "s2",
+     "s4"
+    ],
+    "evidence": "Most competitive neural sequence transduction models have an encoder-decoder structure",
+    "aliases": [],
+    "mentions": 2
+   },
+   {
+    "id": "adam-optimizer",
+    "label": "Adam optimizer",
+    "type": "tool",
+    "description": "The optimization strategy used for training the Transformer models with a specific learning rate schedule.",
+    "sections": [
+     "s0",
+     "s5"
+    ],
+    "evidence": "It defines the optimization strategy using the Adam optimizer with a specific learning rate schedule",
+    "aliases": [
+     "Adam Optimizer"
+    ],
+    "mentions": 3
+   }
+  ],
+  "edges": [
+   {
+    "source": "anaphora-resolution",
+    "target": "this-work",
+    "relation": "part_of",
+    "description": "Observed behavior in attention heads",
+    "sections": [
+     "s7"
+    ]
+   },
+   {
+    "source": "bytenet",
+    "target": "convs2s",
+    "relation": "related_to",
+    "description": "Both use convolutional neural networks",
+    "sections": [
+     "s1"
+    ]
+   },
+   {
+    "source": "convolutional",
+    "target": "dilated-convolutions",
+    "relation": "related_to",
+    "description": "Specific variant for connectivity",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "convolutional",
+    "target": "separable-convolutions",
+    "relation": "related_to",
+    "description": "Optimization variant",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "decoder",
+    "target": "multi-head-self-attention",
+    "relation": "uses",
+    "description": "The decoder uses multi-head self-attention, including attention over encoder output.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "decoder",
+    "target": "position-wise-feed-forward-networks",
+    "relation": "uses",
+    "description": "The decoder uses position-wise feed-forward networks as a sub-layer.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "encoder",
+    "target": "multi-head-self-attention",
+    "relation": "uses",
+    "description": "The encoder uses multi-head self-attention as a sub-layer.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "encoder",
+    "target": "position-wise-feed-forward-networks",
+    "relation": "uses",
+    "description": "The encoder uses position-wise feed-forward networks as a sub-layer.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "extended-neural-gpu",
+    "target": "bytenet",
+    "relation": "related_to",
+    "description": "Both use convolutional neural networks",
+    "sections": [
+     "s1"
+    ]
+   },
+   {
+    "source": "multi-head-attention",
+    "target": "scaled-dot-product-attention",
+    "relation": "uses",
+    "description": "Parallel attention function",
+    "sections": [
+     "s3"
+    ]
+   },
+   {
+    "source": "recurrent",
+    "target": "long-range-dependencies",
+    "relation": "addresses",
+    "description": "Challenged by long path lengths",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "scaled-dot-product-attention",
+    "target": "additive-attention",
+    "relation": "alternative_to",
+    "description": "Competing attention mechanism",
+    "sections": [
+     "s3"
+    ]
+   },
+   {
+    "source": "scaled-dot-product-attention",
+    "target": "dot-product-multiplicative-attention",
+    "relation": "extends",
+    "description": "Adds scaling factor",
+    "sections": [
+     "s3"
+    ]
+   },
+   {
+    "source": "self-attention",
+    "target": "convolutional",
+    "relation": "compares_to",
+    "description": "Comparison of connectivity and cost",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "self-attention",
+    "target": "long-range-dependencies",
+    "relation": "addresses",
+    "description": "Facilitates learning via short paths",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "self-attention",
+    "target": "recurrent",
+    "relation": "compares_to",
+    "description": "Comparison of complexity and path length",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "adam-optimizer",
+    "relation": "uses",
+    "description": "Optimization strategy",
+    "sections": [
+     "s0",
+     "s5"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "additive-attention",
+    "relation": "compares_to",
+    "description": "Compared as an alternative attention function that uses a feed-forward network for compatibility, noted to be slower and less space-efficient than dot-product attention.",
+    "sections": [
+     "s3"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "bleu",
+    "relation": "measured_by",
+    "description": "Translation quality metric",
+    "sections": [
+     "s0"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "bytenet",
+    "relation": "compares_to",
+    "description": "Discusses advantages over this model",
+    "sections": [
+     "s1"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "bytenet",
+    "relation": "outperforms",
+    "description": "Achieves higher BLEU scores",
+    "sections": [
+     "s6"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "convolutional-neural-networks",
+    "relation": "alternative_to",
+    "description": "Dispenses with convolutions entirely",
+    "sections": [
+     "s0"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "convolutional-neural-networks",
+    "relation": "outperforms",
+    "description": "Superior in quality and parallelizable",
+    "sections": [
+     "s0"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "convs2s",
+    "relation": "compares_to",
+    "description": "Discusses advantages over this model",
+    "sections": [
+     "s1"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "convs2s",
+    "relation": "outperforms",
+    "description": "Achieves higher BLEU scores",
+    "sections": [
+     "s6"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "decoder",
+    "relation": "part_of",
+    "description": "The Transformer includes a decoder stack.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "dilated-convolutions",
+    "relation": "related_to",
+    "description": "A type of convolutional layer that reduces path length to O(log_k(n)) but still requires multiple layers for full connectivity.",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "dot-product-multiplicative-attention",
+    "relation": "related_to",
+    "description": "Identified as the base algorithm for the paper's approach, differing only by the addition of the scaling factor.",
+    "sections": [
+     "s3"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "dropout",
+    "relation": "uses",
+    "description": "Used for regularization",
+    "sections": [
+     "s5"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "encoder",
+    "relation": "part_of",
+    "description": "The Transformer includes an encoder stack.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "end-to-end-memory-networks",
+    "relation": "based_on",
+    "description": "Prior models based on recurrent attention mechanisms, distinguished from the Transformer's non-recurrent self-attention.",
+    "sections": [
+     "s1"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "english-constituency-parsing",
+    "relation": "evaluated_on",
+    "description": "Generalization task",
+    "sections": [
+     "s0",
+     "s6"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "extended-neural-gpu",
+    "relation": "compares_to",
+    "description": "Discusses advantages over this model",
+    "sections": [
+     "s1"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "gnmt-rl",
+    "relation": "outperforms",
+    "description": "Achieves higher BLEU scores",
+    "sections": [
+     "s6"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "label-smoothing",
+    "relation": "uses",
+    "description": "Used for regularization",
+    "sections": [
+     "s5"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "layer-normalization",
+    "relation": "uses",
+    "description": "The Transformer applies layer normalization after sub-layers.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "moe",
+    "relation": "outperforms",
+    "description": "Achieves higher BLEU scores",
+    "sections": [
+     "s6"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "multi-head-attention",
+    "relation": "uses",
+    "description": "Projects into multiple subspaces",
+    "sections": [
+     "s0",
+     "s1",
+     "s3"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "penn-treebank",
+    "relation": "uses",
+    "description": "Training data source",
+    "sections": [
+     "s6"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "recurrent-layers",
+    "relation": "alternative_to",
+    "description": "Replaces recurrent layers",
+    "sections": [
+     "s7"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "recurrent-neural-networks",
+    "relation": "alternative_to",
+    "description": "Eliminates recurrence entirely",
+    "sections": [
+     "s0",
+     "s1"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "recurrent-neural-networks",
+    "relation": "outperforms",
+    "description": "Superior in quality and parallelizable",
+    "sections": [
+     "s0"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "residual-connection",
+    "relation": "uses",
+    "description": "The Transformer employs residual connections around sub-layers.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "scaled-dot-product-attention",
+    "relation": "uses",
+    "description": "Core attention mechanism",
+    "sections": [
+     "s0"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "self-attention",
+    "relation": "uses",
+    "description": "Relies entirely on self-attention",
+    "sections": [
+     "s1",
+     "s3",
+     "s4"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "separable-convolutions",
+    "relation": "compares_to",
+    "description": "A convolutional variant that decreases complexity to O(k * n * d + n * d^2), comparable to self-attention plus feed-forward layers.",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "sequence-transduction",
+    "relation": "addresses",
+    "description": "The Transformer is a model for sequence transduction tasks.",
+    "sections": [
+     "s2"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "sequence-transduction",
+    "relation": "evaluated_on",
+    "description": "Target task domain",
+    "sections": [
+     "s4"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "wmt-2014-english-to-french",
+    "relation": "evaluated_on",
+    "description": "Machine translation task",
+    "sections": [
+     "s0",
+     "s5",
+     "s6",
+     "s7"
+    ]
+   },
+   {
+    "source": "this-work",
+    "target": "wmt-2014-english-to-german",
+    "relation": "evaluated_on",
+    "description": "Machine translation task",
+    "sections": [
+     "s0",
+     "s5",
+     "s6",
+     "s7"
+    ]
+   },
+   {
+    "source": "wmt-2014-english-to-german",
+    "target": "bleu",
+    "relation": "measured_by",
+    "description": "Evaluation metric",
+    "sections": [
+     "s6"
+    ]
+   }
+  ]
+ },
+ "narration": {
+  "provider": "browser",
+  "language_code": "en-US",
+  "voices": {},
+  "rate": 1.0
+ },
+ "qa": {
+  "endpoint": "api/ask",
+  "suggested_questions": [
+   "How does the constant path length of self-attention specifically address the vanishing gradient problem in long-sequence modeling compared to the multiplicative path length of RNNs?",
+   "What specific regularization techniques were employed to stabilize training, and how do they interact with the Adam optimizer's learning rate schedule?",
+   "In the context of the WMT 2014 results, what is the quantitative trade-off between the BLEU score improvement and the reduction in training cost compared to the best recurrent baselines?",
+   "How does the masking mechanism in the decoder self-attention ensure causality, and does this architectural choice impact the model's ability to capture bidirectional context during inference?",
+   "Given the model's reliance on sinusoidal positional encodings, how does this approach handle sequence lengths significantly longer than those seen during training, and what are the implications for extrapolation in embodied AI tasks?"
+  ]
+ },
+ "quiz": {
+  "questions": [
+   {
+    "id": "q1",
+    "section_id": "s0",
+    "question": "Why does the Transformer architecture eliminate recurrence and convolutions in favor of attention mechanisms?",
+    "options": [
+     "To enable superior parallelization and significantly reduce training time while improving quality.",
+     "To reduce the memory footprint of the encoder-decoder stack.",
+     "To simplify the mathematical derivation of the attention weight matrices.",
+     "To eliminate the need for sinusoidal positional encodings."
+    ],
+    "answer": 0,
+    "explanation": "The abstract explicitly states that the Transformer is superior in quality, more parallelizable, and requires significantly less time to train by dispensing with recurrence and convolutions.",
+    "quote": "Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train.",
+    "kind": "mechanism",
+    "difficulty": "medium",
+    "beat_id": "deep.s0.b1",
+    "source": null
+   },
+   {
+    "id": "q2",
+    "section_id": "s1",
+    "question": "How does the computational cost to relate distant positions in the Transformer compare to ConvS2S and ByteNet?",
+    "options": [
+     "Quadratic operations, versus linear for ConvS2S and logarithmic for ByteNet",
+     "Linear operations, versus logarithmic for ConvS2S and constant for ByteNet",
+     "Constant operations, versus linear for ConvS2S and logarithmic for ByteNet",
+     "Logarithmic operations, versus linear for ConvS2S and constant for ByteNet"
+    ],
+    "answer": 2,
+    "explanation": "The text explicitly states that in the Transformer, the number of operations required to relate signals from two arbitrary positions is reduced to a constant, whereas it grows linearly for ConvS2S and logarithmically for ByteNet.",
+    "quote": "In these models, the number of operations required to relate signals from two arbitrary input or output positions grows in the distance between positions, linearly for ConvS2S and logarithmically for ByteNet. This makes it more difficult to learn dependencies between distant positions [12]. In the Transformer this is reduced to a constant number of operations",
+    "kind": "comparison",
+    "difficulty": "medium",
+    "beat_id": "deep.s1.b3",
+    "source": null
+   },
+   {
+    "id": "q3",
+    "section_id": "s1",
+    "question": "What specific trade-off does the Transformer's constant-operation self-attention introduce, and how is it addressed?",
+    "options": [
+     "Increased memory usage due to parallelization, counteracted by conditional computation",
+     "Higher latency due to sequential steps, counteracted by factorization tricks",
+     "Loss of local context due to global focus, counteracted by convolutional layers",
+     "Reduced effective resolution due to averaging, counteracted by Multi-Head Attention"
+    ],
+    "answer": 3,
+    "explanation": "The text notes that reducing operations to a constant comes at the cost of reduced effective resolution due to averaging attention-weighted positions, an effect the authors counteract with Multi-Head Attention.",
+    "quote": "In the Transformer this is reduced to a constant number of operations, albeit at the cost of reduced effective resolution due to averaging attention-weighted positions, an effect we counteract with Multi-Head Attention as described in section 3.2.",
+    "kind": "limitation",
+    "difficulty": "hard",
+    "beat_id": "deep.s1.b4",
+    "source": null
+   },
+   {
+    "id": "q4",
+    "section_id": "s2",
+    "question": "What specific modification is applied to the decoder's self-attention sub-layer?",
+    "options": [
+     "The output embeddings are offset by one position to ensure causality.",
+     "Masking is used to prevent positions from attending to subsequent positions.",
+     "A third sub-layer performs multi-head attention over the encoder output.",
+     "Residual connections are removed to facilitate the auto-regressive generation."
+    ],
+    "answer": 1,
+    "explanation": "The text explicitly states that the self-attention sub-layer in the decoder stack is modified to prevent positions from attending to subsequent positions, which is achieved through masking.",
+    "quote": "We also modify the self-attention sub-layer in the decoder stack to prevent positions from attending to subsequent positions.",
+    "kind": "mechanism",
+    "difficulty": "easy",
+    "beat_id": "deep.s2.b2",
+    "source": null
+   },
+   {
+    "id": "q5",
+    "section_id": "s3",
+    "question": "Why is the dot product scaled by $1/\\sqrt{d_k}$ in Scaled Dot-Product Attention?",
+    "options": [
+     "To reduce the computational complexity of the matrix multiplication operation",
+     "To prevent large dot products from pushing softmax into low-gradient regions",
+     "To allow the model to attend to distant tokens more effectively",
+     "To ensure the output weights sum to exactly one before normalization"
+    ],
+    "answer": 1,
+    "explanation": "The text explains that for large $d_k$, dot products grow large in magnitude, pushing the softmax function into regions with extremely small gradients; scaling counteracts this.",
+    "quote": "We suspect that for large values of $d_k$, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients",
+    "kind": "mechanism",
+    "difficulty": "medium",
+    "beat_id": "high.s3.b1",
+    "source": null
+   },
+   {
+    "id": "q6",
+    "section_id": "s3",
+    "question": "What is the primary benefit of Multi-Head Attention over single-head attention?",
+    "options": [
+     "It allows joint attention to information from different representation subspaces",
+     "It prevents information flow from future positions in the decoder sequence",
+     "It significantly reduces the total computational cost compared to single-head attention",
+     "It eliminates the need for linear projections of queries, keys, and values"
+    ],
+    "answer": 0,
+    "explanation": "The text states that multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions, whereas a single head's averaging inhibits this.",
+    "quote": "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions.",
+    "kind": "concept",
+    "difficulty": "easy",
+    "beat_id": "deep.s3.b2",
+    "source": null
+   },
+   {
+    "id": "q7",
+    "section_id": "s4",
+    "question": "Why does the paper argue self-attention is faster than recurrent layers for typical sentence representations?",
+    "options": [
+     "Self-attention eliminates the need for feed-forward networks",
+     "Sequence length n is usually smaller than dimension d",
+     "Self-attention requires fewer sequential operations than convolutional layers",
+     "Recurrent layers have higher computational complexity per layer"
+    ],
+    "answer": 1,
+    "explanation": "The text states self-attention is faster when n < d, which is common in state-of-the-art models using word-piece or byte-pair representations.",
+    "quote": "-attention layers are faster than recurrent layers when the sequence length $n$ is smaller than the representation dimensionality $d$, which is most often the case with sentence representations used by state-of-the-art models in machine translations",
+    "kind": "comparison",
+    "difficulty": "medium",
+    "beat_id": "high.s4.b2",
+    "source": null
+   },
+   {
+    "id": "q8",
+    "section_id": "s5",
+    "question": "How does the learning rate schedule behave after the warmup phase?",
+    "options": [
+     "It oscillates between two fixed values defined by the warmup steps.",
+     "It decreases linearly with the step number until convergence.",
+     "It remains constant at the value reached at the end of warmup.",
+     "It decreases proportionally to the inverse square root of the step number."
+    ],
+    "answer": 3,
+    "explanation": "The text explicitly states that after the initial linear increase, the learning rate decreases proportionally to the inverse square root of the step number.",
+    "quote": "This corresponds to increasing the learning rate linearly for the first $warmup\\_steps$ training steps, and decreasing it thereafter proportionally to the inverse square root of the step number.",
+    "kind": "mechanism",
+    "difficulty": "medium",
+    "beat_id": "high.s5.b2",
+    "source": null
+   },
+   {
+    "id": "q9",
+    "section_id": "s6",
+    "question": "What does the variation in attention heads (Table 3, rows A) reveal about model quality?",
+    "options": [
+     "More heads always lead to better BLEU scores",
+     "Single-head attention is superior to multi-head attention",
+     "Quality drops with both too few and too many heads",
+     "Key and value dimensions have no impact on quality"
+    ],
+    "answer": 2,
+    "explanation": "The text notes that single-head attention is worse, but quality also drops off with too many heads, indicating an optimal middle ground.",
+    "quote": "While single-head attention is 0.9 BLEU worse than the best setting, quality also drops off with too many heads.",
+    "kind": "result",
+    "difficulty": "medium",
+    "beat_id": "deep.s6.b3",
+    "source": null
+   },
+   {
+    "id": "q10",
+    "section_id": "s7",
+    "question": "According to the visualizations, what specific linguistic task do the attention heads in layer 5 of 6 perform?",
+    "options": [
+     "Resolving long-distance dependencies and anaphora",
+     "Executing local convolutional feature extraction",
+     "Calculating global sentence embeddings",
+     "Performing token-level syntactic parsing"
+    ],
+    "answer": 0,
+    "explanation": "The text explicitly states that Figure 3 shows heads attending to distant dependencies (e.g., 'making...more difficult') and Figure 4 shows heads involved in anaphora resolution.",
+    "quote": "Many of the attention heads attend to a distant dependency of the verb `making', completing the phrase `making...more difficult'.",
+    "kind": "mechanism",
+    "difficulty": "medium",
+    "beat_id": "deep.s7.b3",
+    "source": null
+   }
+  ]
+ }
+}

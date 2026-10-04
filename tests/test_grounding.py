@@ -1,4 +1,5 @@
-from papermap.grounding import find_quote, name_in_text, normalize, number_in_text, lower_text
+from papermap.grounding import find_quote, name_in_text, normalize, number_in_text, number_near_label, lower_text
+from papermap.models import Table, parse_number
 
 SOURCE = (
     "We propose a new simple network architecture, the Transformer, based solely on attention mecha-\n"
@@ -44,6 +45,22 @@ def test_scientific_notation_survives_pdf_flattening():
     assert number_in_text("2.3e+19", text)
     assert number_in_text(1e-9, text)
     assert not number_in_text(4.1e18, text)
+
+
+def test_scientific_notation_in_latex_tables():
+    # Table 2 of "Attention Is All You Need", as the LaTeX source writes it
+    row = ["GNMT + RL", "24.6", "39.92", r"$2.3 \cdot 10^{19}$", r"$1.4 \cdot 10^{20}$"]
+    text = " | ".join(row)
+    assert number_in_text(2.3e19, text)
+    assert number_in_text(1.4e20, text)
+    assert number_in_text(9.6e18, r"9.6 \times 10^{18}")
+    assert not number_in_text(2.3e15, text)  # wrong exponent
+    table = Table(id="t2", columns=["Model", "BLEU EN-DE", "BLEU EN-FR", "FLOPs EN-DE", "FLOPs EN-FR"], rows=[row])
+    assert number_near_label(2.3e19, "GNMT + RL", "", tables=[table])
+    assert number_near_label(3.3e18, "Transformer (base model)", r"the Transformer base model costs $3.3 \cdot 10^{18}$ FLOPs")
+    assert not number_near_label(3.3e18, "ConvS2S", r"the Transformer base model costs $3.3 \cdot 10^{18}$ FLOPs")
+    assert parse_number(r"$2.3\cdot10^{19}$") == 2.3e19
+    assert parse_number(r"9.6 \times 10^{18}") == 9.6e18
 
 
 def test_name_in_text_handles_acronyms():

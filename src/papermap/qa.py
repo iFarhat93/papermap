@@ -40,7 +40,10 @@ class QAEngine:
         self.llm = llm
         self.exp = Experience.model_validate(json.loads((self.out_dir / "experience.json").read_text("utf-8")))
         index_path = self.out_dir / "qa_index.json"
-        index = json.loads(index_path.read_text("utf-8")) if index_path.is_file() else {"chunks": [], "notes": {}}
+        if not index_path.is_file():  # answers must come from the paper's text, not from summaries alone
+            raise FileNotFoundError("this page was shared without the paper's text, so it cannot answer questions; "
+                                    "generate it yourself with `papermap <paper> --profile <profile.md>` to ask")
+        index = json.loads(index_path.read_text("utf-8"))
         self.chunks: list[dict] = index["chunks"]
         self.notes: dict[str, dict] = index["notes"]
         self.titles = {s.id: s.title for s in self.exp.sections}

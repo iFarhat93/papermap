@@ -26,6 +26,15 @@ pip install -e ".[all]"
 
 The command-line tool is called `papermap`.
 
+## Examples
+
+Two pages generated with `qwen3.8:27b` for the reader in [`examples/profile.example.md`](examples/profile.example.md). Open one:
+
+```bash
+papermap serve examples/attention-is-all-you-need
+papermap serve examples/pi05-knowledge-insulation
+```
+
 ## Run
 
 ```bash
@@ -58,6 +67,16 @@ The simplest way to run the model on your own machine is [Ollama](https://ollama
    ```
 
 `papermap serve` then answers your questions with the same model. A 7B model is enough to try PaperMap. A larger one writes better narration and diagrams, if your machine can run it.
+
+## Time and cost
+
+One full page for *Attention Is All You Need* (15 pages):
+
+| Model | Runs on | Time | Cost |
+|---|---|---|---|
+| `qwen3.8:27b` (tested) | Ollama, RTX 5070 Ti (16 GB) | 40 min | free |
+| `claude-sonnet-5-5` or `gpt-6.1-sol` | Anthropic or OpenAI API | about 5 min | about $0.80 |
+| `claude-opus-5-5` | Anthropic API | about 5 min | about $1.70 |
 
 ## License
 

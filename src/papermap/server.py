@@ -69,14 +69,16 @@ class _Handler(SimpleHTTPRequestHandler):
         return self._json(200, result)
 
 
-def serve(out_dir: Path, engine: QAEngine | None, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
+def serve(out_dir: Path, engine: QAEngine | None, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
+          reason: str = "") -> None:
+    """`reason` says why Q&A is off; the page shows it instead of a generic message."""
     out_dir = Path(out_dir).resolve()
     if not (out_dir / "index.html").is_file():
         raise FileNotFoundError(f"{out_dir} has no index.html - generate it first with `papermap run`")
     handler = partial(_Handler, directory=str(out_dir))
     _Handler.engine = engine
     _Handler.info = (
-        {"provider": engine.llm.provider.name, "model": engine.llm.settings.model} if engine else {}
+        {"provider": engine.llm.provider.name, "model": engine.llm.settings.model} if engine else ({"reason": reason} if reason else {})
     )
     server = None
     for p in range(port, port + 20):

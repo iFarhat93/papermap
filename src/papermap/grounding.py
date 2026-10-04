@@ -106,22 +106,29 @@ def _rounding_match(value: float | str, hay: str) -> bool:
     return False
 
 
-def _scientific_match(value: float | str, hay: str) -> bool:
-    """3.3e18 written as "3.3 · 10^18" - which PDF extraction flattens to "3.3 · 1018"."""
+_TIMES = r"(?:[·x×*⋅]|\\cdot|\\times)?"
+
+
+def _scientific_spans(value: float | str, hay: str) -> list[tuple[int, int]]:
+    """Where 3.3e18 is written as "3.3 · 10^18", as LaTeX "3.3 \\cdot 10^{18}", or as the
+    "3.3 · 1018" that PDF extraction flattens it to."""
     try:
         f = float(str(value).replace(",", ""))
     except ValueError:
-        return False
+        return []
     if f == 0 or 1e-3 <= abs(f) < 1e5:
-        return False
+        return []
     exp = int(f"{abs(f):e}".split("e")[1])
     mant = abs(f) / 10**exp
-    mantissas = {f"{mant:.{d}f}".rstrip("0").rstrip(".") for d in range(0, 3)}
-    for m in mantissas:
-        mant_re = "" if m == "1" else rf"{re.escape(m)}\s*[·x×*⋅]?\s*"
-        if re.search(rf"(?<![\d.]){mant_re}10\s*\^?\s*\(?{exp}(?![\d])", hay):
-            return True
-    return False
+    spans = []
+    for m in {f"{mant:.{d}f}".rstrip("0").rstrip(".") for d in range(0, 3)}:
+        mant_re = "" if m == "1" else rf"{re.escape(m)}\s*{_TIMES}\s*"
+        spans += [x.span() for x in re.finditer(rf"(?<![\d.]){mant_re}10\s*\^?\s*[({{]?\s*{exp}(?![\d])", hay)]
+    return spans
+
+
+def _scientific_match(value: float | str, hay: str) -> bool:
+    return bool(_scientific_spans(value, hay))
 
 
 def number_in_text(value: float | str | None, text: str) -> bool:
@@ -172,10 +179,10 @@ def number_near_label(value: float | str, label: str, text: str, tables=(), wind
             if col and label_matches(label, col) and any(ci < len(r) and number_in_text(value, r[ci]) for r in t.rows):
                 return True
     hay = normalize(text).replace(",", "")
-    for form in _number_forms(value):
-        for m in re.finditer(rf"(?<![\d.]){re.escape(form)}(?![\d])", hay):
-            if label_matches(label, hay[max(0, m.start() - window) : m.end() + window]):
-                return True
+    spans = [m.span() for form in _number_forms(value) for m in re.finditer(rf"(?<![\d.]){re.escape(form)}(?![\d])", hay)]
+    for start, end in spans + _scientific_spans(value, hay):
+        if label_matches(label, hay[max(0, start - window) : end + window]):
+            return True
     return False
 
 
