@@ -1713,11 +1713,20 @@
     store.set('quiz', keep);
   }
 
+  // Tell the local server (papermap serve / papermap ui) what was read and scored, so the
+  // library can show it. Opened as a plain file there is no server: the request just fails.
+  function report(kind, payload) {
+    if (location.protocol === 'file:') return;
+    fetch(`api/${kind}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .catch(() => { /* no server */ });
+  }
+
   function markRead(id) {
     if (!id || state.read.has(id)) return;
     const before = allRead();
     state.read.add(id);
     store.set('read', [...state.read]);
+    report('progress', { read: [...state.read], total: SECTIONS.length });
     updateRail();
     if (!before && allRead()) onAllRead();
   }
@@ -1792,6 +1801,10 @@
     z.last = { correct, total: QUIZ.length, answers: { ...z.answers }, at: Date.now() };
     if (!z.best || correct > z.best.correct) z.best = { correct, total: QUIZ.length };
     z.phase = 'results';
+    report('quiz', {
+      correct, total: QUIZ.length,
+      missed: QUIZ.filter((q) => z.answers[q.id] !== q.answer).map((q) => ({ id: q.id, section_id: q.section_id, question: q.question })),
+    });
     saveQuiz();
     renderQuiz();
     updateRail();
