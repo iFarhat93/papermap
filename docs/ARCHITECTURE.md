@@ -21,7 +21,7 @@ config ────┘        │   └──────── stage cache (con
 
 ```
 src/papermap/
-  cli.py            commands: run (default), serve, init, check, stages
+  cli.py            commands: run (default), serve, ui, render, init, check, stages
   config.py         TOML config + CLI overrides (pydantic); no secrets stored
   models.py         the data contract (stage outputs and the final Experience)
   pipeline.py       stage registry, cache keys, orchestration
@@ -29,13 +29,14 @@ src/papermap/
   grounding.py      quote / number / attribution / entity checks against the paper text
   retrieval.py      BM25 for Q&A
   qa.py             grounded question answering over a generated experience
-  server.py         static file server + /api/ask + /api/health (stdlib only)
+  server.py         static file server + /api/ask, /api/health, /api/quiz, /api/progress (stdlib only)
+  ui/               papermap ui: dashboard server, run queue (subprocesses), library, model lists and prices
   log.py            console + per-run file logging
   llm/              provider interface, client (cache/retry/JSON), providers
   tts/              text-to-speech providers
   stages/           one module per pipeline stage
   sources/          arXiv lookup + LaTeX parser, PDF tables/figures, page images + quote location
-  web/              index.html template, app.css, app.js (the generated page)
+  web/              index.html template, app.css, app.js (the generated page); web/ui/ is the dashboard
 tests/              pytest suite, on the dev branch only (mock provider, generated PDF)
 ```
 
