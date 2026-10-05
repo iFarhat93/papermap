@@ -133,7 +133,7 @@ def attach_figures(exp: Experience, paper: ParsedPaper, und: Understanding, cach
     for f in paper.figures:
         images = []
         for k, rel in enumerate(f.files, start=1):
-            src = cache.root / rel
+            src = cache.touch(cache.root / rel)
             if src.is_file():
                 dst = out / "figures" / f"{f.id}-{k}.png"
                 if not dst.is_file() or dst.stat().st_size != src.stat().st_size:
@@ -210,7 +210,7 @@ def _run(ctx: RunContext, deps: dict) -> Experience:
 
     missing = 0
     for rel in narration.clips.values():
-        src = ctx.cache.root / rel
+        src = ctx.cache.touch(ctx.cache.root / rel)
         dst = out / rel
         if src.is_file():
             if not dst.is_file() or dst.stat().st_size != src.stat().st_size:

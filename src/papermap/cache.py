@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -37,10 +38,22 @@ class Cache:
     def __init__(self, root: str | Path, enabled: bool = True):
         self.root = Path(root)
         self.enabled = enabled
+        # every entry this run read or wrote, so a project can list (and clear) its share of the cache
+        self.touched: set[str] = set()
+        self._touch_lock = threading.Lock()
+
+    def touch(self, path: Path) -> Path:
+        try:
+            rel = path.relative_to(self.root).as_posix()
+        except ValueError:
+            return path
+        with self._touch_lock:
+            self.touched.add(rel)
+        return path
 
     # --- stages
     def stage_path(self, stage: str, key: str) -> Path:
-        return self.root / "stages" / stage / f"{key}.json"
+        return self.touch(self.root / "stages" / stage / f"{key}.json")
 
     def get_stage(self, stage: str, key: str) -> Any | None:
         if not self.enabled:
@@ -60,7 +73,7 @@ class Cache:
 
     # --- llm calls
     def llm_path(self, key: str) -> Path:
-        return self.root / "llm" / key[:2] / f"{key}.json"
+        return self.touch(self.root / "llm" / key[:2] / f"{key}.json")
 
     def get_llm(self, key: str) -> str | None:
         if not self.enabled:
@@ -81,7 +94,7 @@ class Cache:
 
     # --- binary blobs
     def blob_path(self, kind: str, key: str, ext: str) -> Path:
-        return self.root / kind / f"{key}.{ext.lstrip('.')}"
+        return self.touch(self.root / kind / f"{key}.{ext.lstrip('.')}")
 
     def put_blob(self, kind: str, key: str, ext: str, data: bytes) -> Path:
         p = self.blob_path(kind, key, ext)
