@@ -26,7 +26,8 @@ dependencies = [
 [project.optional-dependencies]
 anthropic = ["anthropic>=1.0"]
 edge-tts = ["edge-tts>=6.1"]
-all = ["anthropic>=1.0", "edge-tts>=6.1"]
+ui = ["keyring>=24"]
+all = ["anthropic>=1.0", "edge-tts>=6.1", "keyring>=24"]
 dev = ["pytest>=8"]
 
 [project.scripts]

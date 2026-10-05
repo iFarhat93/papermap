@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PaperMap</title>
+<link rel="stylesheet" href="/ui.css">
+</head>
+<body>
+<div class="shell">
+  <nav class="side" aria-label="Screens">
+    <div class="brand">PaperMap</div>
+    <a class="nav" href="#library" data-screen="library">Library <span class="count" id="n-library"></span></a>
+    <a class="nav" href="#runs" data-screen="runs">Runs <span class="badge" id="n-runs" hidden></span></a>
+    <a class="nav" href="#new" data-screen="new">New paper</a>
+    <a class="nav" href="#progress" data-screen="progress">Reading progress</a>
+    <a class="nav" href="#concepts" data-screen="concepts">Concepts</a>
+    <a class="nav" href="#compare" data-screen="compare">Compare</a>
+    <a class="nav" href="#profiles" data-screen="profiles">Reader profiles</a>
+    <a class="nav" href="#settings" data-screen="settings">Model settings</a>
+    <a class="nav" href="#cache" data-screen="cache">Cache</a>
+    <div class="side-foot" id="side-foot"></div>
+  </nav>
+  <main class="main" id="main" tabindex="-1"></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/ui.js"></script>
+</body>
+</html>
