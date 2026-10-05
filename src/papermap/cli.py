@@ -309,20 +309,15 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_render(args: argparse.Namespace) -> int:
-    from .models import Experience
-    from .stages.render import build_html
+    from .stages.render import rerender
 
     log = setup_logging(args.verbose)
-    out_dir = Path(args.dir)
-    exp_path = out_dir / "experience.json"
-    if not exp_path.is_file():
-        log.error("%s has no experience.json - generate it first with `papermap run`", out_dir)
+    try:
+        index = rerender(Path(args.dir), f"papermap {__version__}")
+    except FileNotFoundError as e:
+        log.error("%s", e)
         return 2
-    exp = Experience.model_validate_json(exp_path.read_text("utf-8"))
-    exp.generator = f"papermap {__version__}"
-    exp_path.write_text(json.dumps(exp.model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8")
-    (out_dir / "index.html").write_text(build_html(exp), "utf-8")
-    log.info("rebuilt %s", (out_dir / "index.html").resolve())
+    log.info("rebuilt %s", index.resolve())
     return 0
 
 

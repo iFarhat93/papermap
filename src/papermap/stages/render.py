@@ -56,6 +56,19 @@ def build_html(experience: Experience) -> str:
     return pattern.sub(lambda m: parts[m.group(0)], _web_asset("index.html"))
 
 
+def rerender(out_dir: Path, generator: str) -> Path:
+    """Rebuild index.html of an existing output folder with the current page design (no model calls)."""
+    out_dir = Path(out_dir)
+    exp_path = out_dir / "experience.json"
+    if not exp_path.is_file():
+        raise FileNotFoundError(f"{out_dir} has no experience.json - generate it first with `papermap run`")
+    exp = Experience.model_validate_json(exp_path.read_text("utf-8"))
+    exp.generator = generator
+    exp_path.write_text(json.dumps(exp.model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8")
+    (out_dir / "index.html").write_text(build_html(exp), "utf-8")
+    return out_dir / "index.html"
+
+
 def build_qa_index(paper: ParsedPaper, und: Understanding, max_chars: int) -> dict:
     chunks = []
     for su in und.sections:
