@@ -454,25 +454,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ---------------------------------------------------------- graph view */
 .graph-wrap { position: absolute; inset: 0; }
-.graph-wrap svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
-.graph-wrap svg.dragging { cursor: grabbing; }
-.gedge line { stroke: var(--border-strong); stroke-width: 1.3; transition: opacity 0.25s, stroke 0.25s; }
-.gedge text { font-size: var(--kg-font, 10.5px); fill: var(--text-muted); opacity: 0; transition: opacity 0.2s; font-family: var(--font-sans); paint-order: stroke; stroke: var(--surface-1); stroke-width: 3px; }
-.gedge.hl line { stroke: var(--accent); stroke-width: 2; }
-.gedge.hl text { opacity: 1; }
-.graph-wrap.many .gedge.hl text { opacity: 0; }
-.graph-wrap .gedge:hover text { opacity: 1; }
-.gnode circle { stroke: var(--surface-1); stroke-width: 2.5; transition: opacity 0.25s, r 0.25s; }
-.gnode text { font-size: var(--kg-font, 12px); fill: var(--text-primary); font-family: var(--font-sans); font-weight: 550; paint-order: stroke; stroke: var(--surface-1); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; transition: opacity 0.25s; }
-.gnode { cursor: pointer; }
-.gnode.center circle { stroke: var(--accent); stroke-width: 3.5; }
-.gnode.center text { font-weight: 750; font-size: var(--kg-font-center, 14px); }
-.gnode.sel circle { stroke: var(--text-primary); stroke-width: 3; }
-.gnode .ring { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0; transition: opacity 0.3s; }
-.gnode.in-section .ring { opacity: 0.9; }
-.graph-wrap.dim .gnode:not(.hl) circle, .graph-wrap.dim .gnode:not(.hl) text { opacity: 0.18; }
-.graph-wrap.dim .gedge:not(.hl) { opacity: 0.12; }
-.gnode.hidden, .gedge.hidden { display: none; }
+.graph-canvas { position: absolute; inset: 0; z-index: 0; }
 .graph-toolbar { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; pointer-events: none; }
 .graph-toolbar > * { pointer-events: auto; }
 .graph-search { border: 1px solid var(--border); background: var(--surface-1); border-radius: 999px; padding: 7px 12px; font: inherit; font-size: 13px; color: var(--text-primary); width: 190px; }

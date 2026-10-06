@@ -2,6 +2,7 @@
 
 Lookup order (first found wins): ``--config PATH``, ``./papermap.toml``,
 ``~/.config/papermap/config.toml``. Missing file -> built-in defaults.
+``--config`` also accepts JSON (the ``papermap.config.json`` an output folder keeps).
 Secrets never live in the config: providers read API keys from the
 environment variable named by ``api_key_env``.
 """
@@ -137,12 +138,46 @@ def find_config(explicit: str | Path | None) -> Path | None:
 def load_config(path: str | Path | None = None, overrides: dict[str, Any] | None = None) -> tuple[Config, Path | None]:
     found = find_config(path)
     data: dict[str, Any] = {}
-    if found:
+    if found and found.suffix.lower() == ".json":  # e.g. papermap.config.json from an output folder
+        data = json.loads(found.read_text("utf-8"))
+    elif found:
         with open(found, "rb") as f:
             data = tomllib.load(f)
     if overrides:
         data = _deep_merge(data, overrides)
     return Config.model_validate(data), found
+
+
+def _toml_key(k: str) -> str:
+    return k if k and all(c.isalnum() or c in "-_" for c in k) else json.dumps(k, ensure_ascii=False)
+
+
+def _toml_value(v: Any) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_toml_value(x) for x in v if x is not None) + "]"
+    if isinstance(v, dict):
+        return "{ " + ", ".join(f"{_toml_key(k)} = {_toml_value(x)}" for k, x in v.items() if x is not None) + " }"
+    return json.dumps(str(v), ensure_ascii=False)  # JSON string escapes are valid TOML basic-string escapes
+
+
+def dump_toml(data: dict[str, Any]) -> str:
+    """Minimal TOML writer for config dicts (tables, scalars, lists). None values and empty tables are left out."""
+    blocks: list[str] = []
+
+    def table(d: dict[str, Any], name: str) -> None:
+        lines = [f"{_toml_key(k)} = {_toml_value(v)}" for k, v in d.items() if v is not None and not isinstance(v, dict)]
+        if lines:
+            blocks.append((f"[{name}]\n" if name else "") + "\n".join(lines))
+        for k, v in d.items():
+            if isinstance(v, dict) and v:
+                table(v, f"{name}.{_toml_key(k)}" if name else _toml_key(k))
+
+    table(data, "")
+    return "\n\n".join(blocks) + "\n"
 
 
 EXAMPLE_CONFIG = """\

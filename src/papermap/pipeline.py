@@ -5,6 +5,9 @@ Paper -> parse -> understand -> profile -> explain -> review -> diagrams -> grap
 Every cacheable stage is keyed by (stage name, version, source hash of its
 module, keys of its dependencies, relevant config). A cached stage is loaded
 instead of recomputed; a failed run resumes from the last finished LLM call.
+
+Progress goes to ``<out>/logs/status.json`` after every stage (the web UI reads it),
+and the cache entries a run used are listed in ``<out>/logs/cache_files.json``.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
+from .cache import _atomic_write
 from .config import stable_hash
 from .log import stage_logger
 from .models import SCHEMA_VERSION, Experience
@@ -93,6 +97,45 @@ def stage_key(stage: Stage, ctx: RunContext, keys: dict[str, str]) -> str:
     )
 
 
+class _Status:
+    """Machine-readable progress for the web UI: current stage, finished stages, usage."""
+
+    def __init__(self, ctx: RunContext):
+        self.ctx = ctx
+        self.path = ctx.out_dir / "logs" / "status.json"
+        self.data: dict[str, Any] = {
+            "state": "running", "source": ctx.source, "stages": STAGE_NAMES, "current": None,
+            "done": [], "cached": [], "error": None, "failed_stage": None, "started": time.time(),
+        }
+
+    def update(self, **fields: Any) -> None:
+        self.data.update(fields)
+        self.data["updated"] = time.time()
+        self.data["usage"] = [
+            {"provider": c.provider.name, "model": c.settings.model, "calls": c.usage.calls, "cached": c.usage.cached,
+             "input_tokens": c.usage.input_tokens, "output_tokens": c.usage.output_tokens, "seconds": round(c.usage.seconds, 1)}
+            for c in self.ctx.clients()
+        ]
+        try:
+            _atomic_write(self.path, json.dumps(self.data, ensure_ascii=False, indent=1).encode("utf-8"))
+        except OSError:  # progress reporting must never break a run
+            pass
+
+
+def _write_cache_manifest(ctx: RunContext) -> None:
+    """Union of the cache entries this output folder has used across its runs."""
+    path = ctx.out_dir / "logs" / "cache_files.json"
+    try:
+        old = set(json.loads(path.read_text("utf-8"))) if path.is_file() else set()
+    except (OSError, ValueError):
+        old = set()
+    files = sorted(old | ctx.cache.touched)
+    try:
+        _atomic_write(path, json.dumps(files, indent=0).encode("utf-8"))
+    except OSError:
+        pass
+
+
 def run_pipeline(
     ctx: RunContext,
     *,
@@ -106,6 +149,23 @@ def run_pipeline(
     if until and until not in STAGE_NAMES:
         raise ValueError(f"unknown stage {until!r}; stages are: {', '.join(STAGE_NAMES)}")
 
+    status = _Status(ctx)
+    status.update()
+    try:
+        result = _run_stages(ctx, force, until, status)
+    except PipelineError as e:
+        status.update(state="failed", error=str(e.cause), failed_stage=e.stage, current=None)
+        raise
+    except BaseException as e:
+        status.update(state="interrupted" if isinstance(e, KeyboardInterrupt) else "failed", error=str(e) or type(e).__name__, current=None)
+        raise
+    finally:
+        _write_cache_manifest(ctx)
+    status.update(state="done", current=None)
+    return result
+
+
+def _run_stages(ctx: RunContext, force: set[str], until: str | None, status: _Status) -> RunResult:
     outputs: dict[str, Any] = {}
     keys: dict[str, str] = {}
     result = RunResult(experience=None, outputs=outputs)
@@ -113,6 +173,7 @@ def run_pipeline(
     debug_dir = ctx.out_dir / "debug"
 
     for stage in STAGES:
+        status.update(current=stage.name)
         log = stage_logger(stage.name)
         key = stage_key(stage, ctx, keys)
         keys[stage.name] = key
@@ -145,6 +206,9 @@ def run_pipeline(
             (debug_dir / f"{stage.name}.json").write_text(
                 json.dumps(outputs[stage.name].model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8"
             )
+        status.data["done"].append(stage.name)
+        status.data["cached"] = list(result.cached)
+        status.update()
         if until and stage.name == until:
             break
 

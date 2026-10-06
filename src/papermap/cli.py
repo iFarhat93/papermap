@@ -3,6 +3,7 @@
     papermap paper.pdf --profile profile.md      # = papermap run ...
     papermap serve papermap-out/<name>           # open it, with grounded Q&A
     papermap render papermap-out/<name>          # rebuild the page with the current design (no model calls)
+    papermap ui                                  # local dashboard: settings, library, background runs
     papermap init                                # write config + profile templates
     papermap check                               # test the model/TTS configuration
     papermap stages                              # list pipeline stages
@@ -24,7 +25,7 @@ from .cache import Cache
 from .config import EXAMPLE_CONFIG, Config, load_config
 from .log import add_file_handler, get_logger, setup_logging
 
-COMMANDS = ("run", "serve", "render", "init", "check", "stages")
+COMMANDS = ("run", "serve", "ui", "render", "init", "check", "stages")
 
 EXAMPLE_PROFILE = """# Who is listening?
 
@@ -143,6 +144,14 @@ def build_parser() -> argparse.ArgumentParser:
     srv.add_argument("--no-qa", action="store_true", help="static serving only")
     srv.add_argument("--cache-dir")
     srv.add_argument("-v", "--verbose", action="store_true")
+
+    ui = sub.add_parser("ui", help="open the local dashboard: model settings, your library, background runs")
+    ui.add_argument("--workspace", default=".", help="folder that holds papermap-out/ and profiles/ (default: current folder)")
+    ui.add_argument("--host", default="127.0.0.1")
+    ui.add_argument("--port", type=int, default=8770)
+    ui.add_argument("--no-browser", action="store_true")
+    ui.add_argument("--print-url", action="store_true", help="print the dashboard link (with its access token) and exit")
+    ui.add_argument("-v", "--verbose", action="store_true")
 
     init = sub.add_parser("init", help="write papermap.toml and profile.md templates")
     init.add_argument("--dir", default=".", help="where to write them")
@@ -263,6 +272,20 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return _serve(out_dir, config, cache, port=args.port, host=args.host, open_browser=not args.no_browser, qa=not args.no_qa)
 
 
+def cmd_ui(args: argparse.Namespace) -> int:
+    from .ui import print_url, run_ui
+
+    if args.print_url:
+        url = print_url(Path(args.workspace))
+        if not url:
+            print("no dashboard has been started in this folder yet: run papermap ui", file=sys.stderr)
+            return 1
+        print(url)
+        return 0
+    setup_logging(args.verbose)
+    return run_ui(Path(args.workspace), host=args.host, port=args.port, open_browser=not args.no_browser)
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     log = setup_logging()
     d = Path(args.dir)
@@ -309,20 +332,15 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_render(args: argparse.Namespace) -> int:
-    from .models import Experience
-    from .stages.render import build_html
+    from .stages.render import rerender
 
     log = setup_logging(args.verbose)
-    out_dir = Path(args.dir)
-    exp_path = out_dir / "experience.json"
-    if not exp_path.is_file():
-        log.error("%s has no experience.json - generate it first with `papermap run`", out_dir)
+    try:
+        index = rerender(Path(args.dir), f"papermap {__version__}")
+    except FileNotFoundError as e:
+        log.error("%s", e)
         return 2
-    exp = Experience.model_validate_json(exp_path.read_text("utf-8"))
-    exp.generator = f"papermap {__version__}"
-    exp_path.write_text(json.dumps(exp.model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8")
-    (out_dir / "index.html").write_text(build_html(exp), "utf-8")
-    log.info("rebuilt %s", (out_dir / "index.html").resolve())
+    log.info("rebuilt %s", index.resolve())
     return 0
 
 
@@ -347,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.command:
         parser.print_help()
         return 0
-    handler = {"run": cmd_run, "serve": cmd_serve, "render": cmd_render, "init": cmd_init, "check": cmd_check, "stages": cmd_stages}[args.command]
+    handler = {"run": cmd_run, "serve": cmd_serve, "ui": cmd_ui, "render": cmd_render, "init": cmd_init, "check": cmd_check, "stages": cmd_stages}[args.command]
     try:
         return handler(args)
     except KeyboardInterrupt:

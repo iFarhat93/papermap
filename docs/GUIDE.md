@@ -13,6 +13,28 @@ papermap paper.pdf -p profile.md --provider mock      # offline and deterministi
 
 `index.html` also works when opened directly from disk or hosted as a static site. Only asking questions needs `papermap serve`, because answering them requires a model.
 
+## The web UI
+
+`papermap ui` opens a local dashboard that does everything the commands do, plus a queue of runs in the background:
+
+```bash
+pip install -e ".[all]"     # "all" includes keyring, which lets the dashboard remember API keys
+papermap ui                 # http://127.0.0.1:8770, opened in your browser
+```
+
+The folder you start it in is the workspace: generated pages go to `papermap-out/`, reader profiles to `profiles/`, and the dashboard keeps its own state (queue, uploads, access token) in `.papermap-ui/`. Use `--workspace DIR` to point it elsewhere and `--port` to change the port.
+
+- **Model settings.** Pick a provider, paste an API key, choose a model from the list the provider returns, and test the connection. "Save as default" writes the config file the CLI reads (`./papermap.toml` if the workspace has one, otherwise `~/.config/papermap/config.toml`). Keys are never written there: a key you paste is kept in memory and given to runs through the usual environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, or `PAPERMAP_API_KEY` for other servers). Tick "Remember" to also save it in the system keychain. A key already set in your environment is used as is.
+- **New paper.** Paste arXiv links (one per line) and drop PDFs, pick the reader profile, the model and the options. Each paper becomes one run. Add a second model to run every paper with both and compare the results. The estimate of time and cost is based on the measurements in the README.
+- **Runs.** Each run is a separate `papermap run` process. Local models run one paper at a time and cloud models three, by default (change it under Model settings > Advanced). The bar shows the ten stages. Runs keep going when you close the tab or stop the dashboard, and the dashboard picks them up again when it restarts. Cancel stops the process; Resume starts it again, and every finished step comes back from the cache. "Notify me when done" adds a browser notification and a sound.
+- **Library.** Every folder in `papermap-out/`, including those made with the command line. Open serves the page with Q&A working, so `papermap serve` is not needed. Re-render rebuilds a page with the current design without calling the model; "Re-render all" does every page. Share downloads the folder as a zip, or the page as one HTML file with its figures, page images and audio inside.
+- **Reading progress.** How far you read each paper, your last and best quiz scores, and the questions you missed. Pages report this back to `papermap ui` and `papermap serve` (into `reading.json` and `quiz_results.json` next to the page). Pages generated before this version need a re-render first.
+- **Concepts.** Search the knowledge graphs of all your papers at once, and see the concepts, methods and datasets that several papers share.
+- **Compare.** Two pages side by side, for example the same paper written by two models or for two readers.
+- **Cache.** Disk used by the cache, per paper and per kind. Clearing a paper removes only the entries no other paper uses.
+
+The dashboard only listens on 127.0.0.1. It answers requests that carry its access token (in the link it prints, then kept in a cookie), refuses other host names and cross-site requests, so other websites open in your browser cannot use it. `papermap ui --print-url` prints the link again.
+
 ## The profile
 
 `profile.md` is free-form Markdown. Say who the listener is, what they already know, what is new to them, what they care about, how deep to go, the tone that works for them and the narration language. See the example in [`examples/profile.example.md`](../examples/profile.example.md). The `profile` stage turns it into a structured audience model, and every explanation is written against it. Concepts the listener already knows are not re-explained. Concepts they are missing get a short definition. Analogies come from fields the listener knows.
@@ -117,6 +139,10 @@ papermap-out/<paper>-<profile>/
   papermap.config.json  the configuration used (no secrets); reused by `serve`
   debug/<stage>.json    every stage's output, for inspection
   logs/run.log          full DEBUG log of the run
+  logs/status.json      progress: current stage, finished stages, token usage
+  logs/cache_files.json the cache entries this page used (for the Cache screen)
+  quiz_results.json     quiz attempts, when the page is opened through serve or ui
+  reading.json          sections read, likewise
 ```
 
 The page supports deep links (`index.html#view=deep&s=3&b=1`, `#mode=ask`, `#mode=quiz`), keyboard shortcuts (press `?`), light and dark themes, and phone-sized screens.
@@ -180,4 +206,4 @@ The tests build a PDF, run the full pipeline with the `mock` provider, and check
 
 - Input is a PDF or an arXiv link. PDFs must contain text (scanned PDFs need OCR first). HTML papers are planned.
 - Q&A answers are not streamed yet.
-- There are no production deployment assumptions. The server is local and single-user, with no authentication.
+- There are no production deployment assumptions. `papermap serve` is local and single-user, with no authentication; `papermap ui` adds an access token but is still meant for one person on one computer.

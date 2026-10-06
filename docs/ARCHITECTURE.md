@@ -3,7 +3,7 @@
 PaperMap has a backend and a frontend that are kept strictly apart:
 
 - **Backend**: a Python pipeline. It turns a paper and a profile into one JSON artifact, `experience.json`, whose schema is defined in [`models.py`](../src/papermap/models.py).
-- **Frontend**: a dependency-free page in [`web/`](../src/papermap/web/). It renders whatever artifact is embedded in it.
+- **Frontend**: a self-contained page in [`web/`](../src/papermap/web/), with no build step. It renders whatever artifact is embedded in it. Two layout libraries are inlined into it from [`web/vendor/`](../src/papermap/web/vendor/): ELK for flow diagrams and Cytoscape.js for the knowledge graph.
 
 The only coupling between them is the artifact schema.
 
@@ -21,7 +21,7 @@ config ────┘        │   └──────── stage cache (con
 
 ```
 src/papermap/
-  cli.py            commands: run (default), serve, init, check, stages
+  cli.py            commands: run (default), serve, ui, render, init, check, stages
   config.py         TOML config + CLI overrides (pydantic); no secrets stored
   models.py         the data contract (stage outputs and the final Experience)
   pipeline.py       stage registry, cache keys, orchestration
@@ -29,13 +29,14 @@ src/papermap/
   grounding.py      quote / number / attribution / entity checks against the paper text
   retrieval.py      BM25 for Q&A
   qa.py             grounded question answering over a generated experience
-  server.py         static file server + /api/ask + /api/health (stdlib only)
+  server.py         static file server + /api/ask, /api/health, /api/quiz, /api/progress (stdlib only)
+  ui/               papermap ui: dashboard server, run queue (subprocesses), library, model lists and prices
   log.py            console + per-run file logging
   llm/              provider interface, client (cache/retry/JSON), providers
   tts/              text-to-speech providers
   stages/           one module per pipeline stage
   sources/          arXiv lookup + LaTeX parser, PDF tables/figures, page images + quote location
-  web/              index.html template, app.css, app.js (the generated page)
+  web/              index.html template, app.css, app.js (the generated page); web/vendor/ ELK and Cytoscape.js, inlined into it; web/ui/ is the dashboard
 tests/              pytest suite, on the dev branch only (mock provider, generated PDF)
 ```
 
@@ -96,10 +97,10 @@ The page's main parts are in `app.js`:
 - **State and player.** The state holds the view (`high`, `deep`, `graph`), the section index, the beat index, the playing flag and the mode (`read`, `ask`, `quiz`). The player advances beat by beat and section by section. Switching between high and deep keeps the section and maps the beat position proportionally. Progress and position are kept in `localStorage`, and the position is also kept in the URL hash, so links can point at a spot.
 - **Narrator.** It has three backends: per-beat audio files, browser speech (split into sentences, with a watchdog for engines that never fire `onend`), or a silent timer based on reading speed.
 - **Diagram renderers.** Each returns a `{focus(ids)}` controller:
-  - Flow diagrams use a layered layout: cycles are broken by DFS, layers come from the longest path, and barycenter sweeps reduce crossings. The renderer picks left-to-right, top-to-bottom or wrapped bands to fit the stage's aspect ratio.
+  - Flow diagrams are laid out by ELK's layered algorithm (elkjs), which places the boxes, nests groups and routes every edge orthogonally around them; edge labels get their own space. Edges that close a cycle (found by a DFS in the model's node order) are laid out reversed, so no edge loops back behind a box. The renderer tries left-to-right, top-to-bottom, wrapped and, for diagrams with groups, "split" layouts (groups in rows or columns, edges between groups cut at the group border and joined again), and keeps the one drawn largest on the stage.
   - Bar charts use zero baselines, at most three series, selective value labels and hover tooltips.
   - Tables and KaTeX equations with term chips round out the renderers.
-- **Knowledge graph.** A deterministic force-directed layout with pan, zoom and drag, plus type filters, search, rings around nodes that appear in the current section, and a details panel that links back to sections.
+- **Knowledge graph.** Drawn with Cytoscape.js and laid out with its fcose force-directed layout (deterministic sampling, so a graph keeps its shape between visits). Pan, zoom and node drag, plus type filters, search (Enter selects the first match), rings around nodes that appear in the current section, relation labels on the selected node's edges, and a details panel that links back to sections. Cytoscape draws on a canvas, so its colors are read from the CSS tokens and refreshed when the theme changes.
 - **Source viewer and paper figures.** The Paper tab shows the rendered PDF page behind the current beat, with the quoted passage highlighted (zoomed and scrolled into view); it follows the narration until you browse away. Sections that discuss one of the paper's figures get Diagram / Figure N toggles on the stage. Inline `$...$` math in captions, quotes and the transcript is rendered with KaTeX, and narration is converted to speakable text before browser speech.
 - **Ask.** The page calls `api/health` and `api/ask` relative to its own URL. Asking works at any time: in the side panel, scoped to a section, diagram or node, and in the full Ask mode. Answers render with `[sN]` citation chips that jump to the cited section.
 - **Quiz.** A section counts as read once the reader gets through its last beat, whether the narration finishes it, they step past it, or they leave it from there. The Quiz mode is locked until every section is read, and there is no way around the lock. It then goes from an intro to one question at a time (A–D keys, ← →, numbered dots to jump), and finally to the results. The results show the score, a per-section breakdown with "Revisit" links, and the missed questions. Each missed question shows the reader's answer, the correct one, the explanation and the quote, plus buttons to review the beat that covers it (with a way back to the results), to open the PDF page with the quote highlighted, and to ask why. Answers, the last result and the best score are kept in `localStorage`. A retake reshuffles each question's options.

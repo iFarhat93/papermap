@@ -41,6 +41,25 @@ def _web_asset(name: str) -> str:
     return resources.files("papermap").joinpath("web", name).read_text(encoding="utf-8")
 
 
+# Layout libraries (web/vendor/README.md), included only when the page has something to lay out.
+FLOW_LIBS = ("elk.bundled.js",)
+GRAPH_LIBS = ("layout-base.js", "cose-base.js", "cytoscape-fcose.js", "cytoscape.min.js")
+
+
+def _vendor_scripts(experience: Experience) -> str:
+    names: list[str] = []
+    if any(d.type == "flow" for sv in _section_views(experience) if (d := sv.diagram)):
+        names += FLOW_LIBS
+    if experience.graph.nodes:
+        names += GRAPH_LIBS
+    return "\n".join(f"<script>{_web_asset('vendor/' + n)}</script>" for n in names)
+
+
+def _section_views(experience: Experience):
+    for view in experience.views.values():
+        yield from view.sections
+
+
 def build_html(experience: Experience) -> str:
     data = json.dumps(experience.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":"))
     data = data.replace("</", "<\\/")  # never let the payload close the <script> tag
@@ -48,12 +67,26 @@ def build_html(experience: Experience) -> str:
     parts = {
         "{{TITLE}}": title,
         "/*{{STYLE}}*/": _web_asset("app.css"),
+        "<!--{{VENDOR}}-->": _vendor_scripts(experience),
         "/*{{SCRIPT}}*/": _web_asset("app.js"),
         "{{DATA}}": data,
     }
     # single pass over the template only: inserted content is never re-scanned
     pattern = re.compile("|".join(re.escape(k) for k in parts))
     return pattern.sub(lambda m: parts[m.group(0)], _web_asset("index.html"))
+
+
+def rerender(out_dir: Path, generator: str) -> Path:
+    """Rebuild index.html of an existing output folder with the current page design (no model calls)."""
+    out_dir = Path(out_dir)
+    exp_path = out_dir / "experience.json"
+    if not exp_path.is_file():
+        raise FileNotFoundError(f"{out_dir} has no experience.json - generate it first with `papermap run`")
+    exp = Experience.model_validate_json(exp_path.read_text("utf-8"))
+    exp.generator = generator
+    exp_path.write_text(json.dumps(exp.model_dump(mode="json"), ensure_ascii=False, indent=1), "utf-8")
+    (out_dir / "index.html").write_text(build_html(exp), "utf-8")
+    return out_dir / "index.html"
 
 
 def build_qa_index(paper: ParsedPaper, und: Understanding, max_chars: int) -> dict:
@@ -133,7 +166,7 @@ def attach_figures(exp: Experience, paper: ParsedPaper, und: Understanding, cach
     for f in paper.figures:
         images = []
         for k, rel in enumerate(f.files, start=1):
-            src = cache.root / rel
+            src = cache.touch(cache.root / rel)
             if src.is_file():
                 dst = out / "figures" / f"{f.id}-{k}.png"
                 if not dst.is_file() or dst.stat().st_size != src.stat().st_size:
@@ -210,7 +243,7 @@ def _run(ctx: RunContext, deps: dict) -> Experience:
 
     missing = 0
     for rel in narration.clips.values():
-        src = ctx.cache.root / rel
+        src = ctx.cache.touch(ctx.cache.root / rel)
         dst = out / rel
         if src.is_file():
             if not dst.is_file() or dst.stat().st_size != src.stat().st_size:

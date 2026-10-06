@@ -109,7 +109,7 @@ def _safe_extract(data: bytes, dest: Path) -> bool:
 def fetch_source(arxiv_id: str, cache, timeout: float = 120) -> Path | None:
     """Download and unpack the e-print; returns the source directory or None."""
     key = re.sub(r"[^0-9A-Za-z.]", "_", arxiv_id)
-    dest = cache.root / "latex" / key
+    dest = cache.touch(cache.root / "latex" / key)
     if dest.is_dir() and any(dest.rglob("*.tex")):
         return dest
     blob = cache.blob_path("downloads", f"arxiv-src-{key}", "bin")

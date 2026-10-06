@@ -52,6 +52,16 @@ Optional flags: `--tts edge` adds real voice audio, `--style duo` switches to a 
 
 Other providers (vLLM, llama.cpp, LM Studio, OpenAI-compatible and Anthropic APIs), voices, configuration and debugging are covered in [docs/GUIDE.md](docs/GUIDE.md). How it works is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Web UI
+
+Prefer clicking to typing? `papermap ui` opens a local dashboard:
+
+```bash
+papermap ui
+```
+
+Set the provider, API key and model, paste arXiv links or drop PDFs, and let them run in the background. Every page you generate is listed in one library, with your reading progress and quiz scores, a search across all their knowledge graphs, side-by-side comparison of two models, and one-file sharing. See [docs/GUIDE.md](docs/GUIDE.md#the-web-ui).
+
 ## Use a local model
 
 The simplest way to run the model on your own machine is [Ollama](https://ollama.com):
