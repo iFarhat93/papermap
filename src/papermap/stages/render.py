@@ -41,6 +41,25 @@ def _web_asset(name: str) -> str:
     return resources.files("papermap").joinpath("web", name).read_text(encoding="utf-8")
 
 
+# Layout libraries (web/vendor/README.md), included only when the page has something to lay out.
+FLOW_LIBS = ("elk.bundled.js",)
+GRAPH_LIBS = ("layout-base.js", "cose-base.js", "cytoscape-fcose.js", "cytoscape.min.js")
+
+
+def _vendor_scripts(experience: Experience) -> str:
+    names: list[str] = []
+    if any(d.type == "flow" for sv in _section_views(experience) if (d := sv.diagram)):
+        names += FLOW_LIBS
+    if experience.graph.nodes:
+        names += GRAPH_LIBS
+    return "\n".join(f"<script>{_web_asset('vendor/' + n)}</script>" for n in names)
+
+
+def _section_views(experience: Experience):
+    for view in experience.views.values():
+        yield from view.sections
+
+
 def build_html(experience: Experience) -> str:
     data = json.dumps(experience.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":"))
     data = data.replace("</", "<\\/")  # never let the payload close the <script> tag
@@ -48,6 +67,7 @@ def build_html(experience: Experience) -> str:
     parts = {
         "{{TITLE}}": title,
         "/*{{STYLE}}*/": _web_asset("app.css"),
+        "<!--{{VENDOR}}-->": _vendor_scripts(experience),
         "/*{{SCRIPT}}*/": _web_asset("app.js"),
         "{{DATA}}": data,
     }

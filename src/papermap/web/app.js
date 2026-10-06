@@ -1,4 +1,5 @@
-/* PaperMap player - vanilla JS, no dependencies.
+/* PaperMap player - vanilla JS. Flow diagrams are laid out with ELK and the knowledge
+ * graph is drawn with Cytoscape.js; both are inlined into the page (web/vendor/).
  * Reads the experience JSON embedded in the page and renders three synchronized
  * views (high-level, deep-dive, knowledge graph), a narrated beat player, typed
  * diagrams with per-beat focus, and grounded Q&A (when served by `papermap serve`).
@@ -454,19 +455,35 @@
     }
   }
 
-  function layoutFlow(d, aspect) {
-    const font = `600 13px ${FONT()}`;
-    const nodes = d.nodes.map((n, i) => {
-      const lines = wrapText(n.label, 148, font, 3);
-      const tw = Math.max(...lines.map((l) => measure(l, font)), 40);
-      return { ...n, i, lines, w: clamp(tw + 34, 104, 200), h: 34 + lines.length * 16 };
-    });
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const edges = d.edges.filter((e) => byId.has(e.source) && byId.has(e.target) && e.source !== e.target);
-    // break cycles (DFS from sources first)
+  // Flow diagrams are laid out by ELK's layered algorithm (elkjs, inlined into the page):
+  // it places the boxes, nests groups and routes every edge orthogonally around them.
+  const ELK_OPTIONS = {
+    'elk.algorithm': 'layered',
+    'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+    'elk.json.shapeCoords': 'ROOT',
+    'elk.json.edgeCoords': 'ROOT',
+    'elk.edgeRouting': 'ORTHOGONAL',
+    'elk.edgeLabels.inline': 'true',
+    'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+    'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+    'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+    'elk.layered.spacing.nodeNodeBetweenLayers': '40',
+    'elk.layered.spacing.edgeNodeBetweenLayers': '12',
+    'elk.layered.spacing.edgeEdgeBetweenLayers': '12',
+    'elk.spacing.nodeNode': '22',
+    'elk.spacing.edgeNode': '14',
+    'elk.spacing.edgeEdge': '14',
+    'elk.spacing.edgeLabel': '4',
+  };
+  const NO_COMPACTION = { 'elk.layered.compaction.postCompaction.strategy': 'NONE' };
+  let elk = null;
+
+  // Edges that close a cycle, found by a DFS in the model's node order. They are laid out
+  // reversed, so the diagram reads in the narrative's order and no edge loops back.
+  function cycleEdges(nodes, edges) {
     const out = new Map(nodes.map((n) => [n.id, []]));
-    const indeg0 = new Map(nodes.map((n) => [n.id, 0]));
-    edges.forEach((e) => { out.get(e.source).push(e); indeg0.set(e.target, indeg0.get(e.target) + 1); });
+    const indeg = new Map(nodes.map((n) => [n.id, 0]));
+    edges.forEach((e) => { out.get(e.source).push(e); indeg.set(e.target, indeg.get(e.target) + 1); });
     const mark = new Map();
     const back = new Set();
     const dfs = (id) => {
@@ -478,280 +495,206 @@
       }
       mark.set(id, 2);
     };
-    nodes.filter((n) => indeg0.get(n.id) === 0).forEach((n) => { if (!mark.get(n.id)) dfs(n.id); });
+    nodes.filter((n) => indeg.get(n.id) === 0).forEach((n) => { if (!mark.get(n.id)) dfs(n.id); });
     nodes.forEach((n) => { if (!mark.get(n.id)) dfs(n.id); });
-    const dag = edges.filter((e) => !back.has(e));
-    // longest-path layering
-    const indeg = new Map(nodes.map((n) => [n.id, 0]));
-    const succ = new Map(nodes.map((n) => [n.id, []]));
-    const pred = new Map(nodes.map((n) => [n.id, []]));
-    dag.forEach((e) => { indeg.set(e.target, indeg.get(e.target) + 1); succ.get(e.source).push(e.target); pred.get(e.target).push(e.source); });
-    const layer = new Map(nodes.map((n) => [n.id, 0]));
-    const queue = nodes.filter((n) => indeg.get(n.id) === 0).map((n) => n.id);
-    while (queue.length) {
-      const id = queue.shift();
-      for (const t of succ.get(id)) {
-        layer.set(t, Math.max(layer.get(t), layer.get(id) + 1));
-        indeg.set(t, indeg.get(t) - 1);
-        if (indeg.get(t) === 0) queue.push(t);
+    return back;
+  }
+
+  // Two ways to lay out a diagram with groups:
+  // - nested: one layered layout across all groups, so the whole diagram flows in one direction;
+  // - split: the groups are laid out one way (e.g. rows) and their contents the other. Each
+  //   edge between groups is cut at the group borders (node -> port -> port -> node) so ELK
+  //   still routes every piece, and the pieces are joined again when reading the result.
+  // Edge labels get a column of their own in a left-to-right flow: wrap them on two lines there.
+  function edgeLabel(text, font, narrow) {
+    const lines = narrow ? wrapText(text, 64, font, 2) : [text];
+    return { text, lines, width: Math.max(...lines.map((l) => measure(l, font))) + 10, height: 14 * lines.length + 4 };
+  }
+
+  function elkGraph(f, c) {
+    const labelFont = `11px ${FONT()}`;
+    const groupFont = `700 11px ${FONT()}`;
+    const split = Boolean(c.inner);
+    const [outSide, inSide] = c.dir === 'DOWN' ? ['SOUTH', 'NORTH'] : ['EAST', 'WEST'];
+    // a group is at least as wide as its title, drawn in its top padding
+    const boxes = new Map(f.groups.map((g) => [g.id, {
+      id: `g:${g.id}`, children: [], ports: [], edges: [], layoutOptions: {
+        // (post-compaction fails on graphs with border ports: "Invalid hitboxes for scanline constraint")
+        ...(split ? { ...ELK_OPTIONS, ...NO_COMPACTION, 'elk.direction': c.inner, 'elk.portConstraints': 'FIXED_SIDE' } : {}),
+        'elk.padding': '[top=32,left=14,bottom=14,right=14]',
+        'elk.nodeSize.constraints': 'MINIMUM_SIZE',
+        'elk.nodeSize.minimum': `(${Math.ceil(measure(g.label.toUpperCase(), groupFont) * 1.1) + 32}, 0)`,
+      },
+    }]));
+    const groupOf = (id) => boxes.get(f.byId.get(id).group);
+    const children = [];
+    f.nodes.forEach((n) => (boxes.get(n.group)?.children || children).push({ id: `n:${n.id}`, width: n.w, height: n.h }));
+    const edges = [];
+    f.edges.forEach((e, i) => {
+      const [a, b] = f.back.has(e) ? [e.target, e.source] : [e.source, e.target];
+      const labels = e.label ? [edgeLabel(e.label, labelFont, c.dir === 'RIGHT' && !c.inner)] : [];
+      const ga = groupOf(a);
+      const gb = groupOf(b);
+      if (!split || (ga && ga === gb)) {
+        (split ? ga.edges : edges).push({ id: `e${i}`, sources: [`n:${a}`], targets: [`n:${b}`], labels });
+        return;
       }
-    }
-    // pull sinks-only-sources (nodes feeding a far layer) closer to their target
-    nodes.forEach((n) => {
-      const ts = succ.get(n.id);
-      if (!pred.get(n.id).length && ts.length) layer.set(n.id, Math.max(0, Math.min(...ts.map((t) => layer.get(t))) - 1));
+      let src = `n:${a}`;
+      let tgt = `n:${b}`;
+      if (ga) {
+        src = `p:${i}:out`;
+        ga.ports.push({ id: src, width: 0, height: 0, layoutOptions: { 'elk.port.side': outSide } });
+        ga.edges.push({ id: `e${i}:a`, sources: [`n:${a}`], targets: [src] });
+      }
+      if (gb) {
+        tgt = `p:${i}:in`;
+        gb.ports.push({ id: tgt, width: 0, height: 0, layoutOptions: { 'elk.port.side': inSide } });
+        gb.edges.push({ id: `e${i}:b`, sources: [tgt], targets: [`n:${b}`] });
+      }
+      edges.push({ id: `e${i}`, sources: [src], targets: [tgt], labels });
     });
-    const nLayers = Math.max(0, ...layer.values()) + 1;
-    const layers = Array.from({ length: nLayers }, () => []);
-    nodes.forEach((n) => layers[layer.get(n.id)].push(n));
-    // crossing reduction: barycenter sweeps
-    const pos = new Map();
-    layers.forEach((L) => L.forEach((n, i) => pos.set(n.id, i)));
-    for (let it = 0; it < 8; it++) {
-      const down = it % 2 === 0;
-      const seq = down ? layers.slice(1) : layers.slice(0, -1).reverse();
-      for (const L of seq) {
-        for (const n of L) {
-          const nb = (down ? pred : succ).get(n.id);
-          n.bc = nb.length ? nb.reduce((a, id) => a + pos.get(id), 0) / nb.length : pos.get(n.id);
-        }
-        L.sort((a, b) => a.bc - b.bc || a.i - b.i);
-        L.forEach((n, i) => pos.set(n.id, i));
-      }
+    boxes.forEach((b) => { if (b.children.length) children.push(b); });
+    const layoutOptions = {
+      ...ELK_OPTIONS, ...c.options, 'elk.direction': c.dir,
+      'elk.hierarchyHandling': split ? 'SEPARATE_CHILDREN' : 'INCLUDE_CHILDREN',
+      // groups as big blocks: centered (not aligned into a staircase) and packed closer
+      ...(split ? {
+        ...NO_COMPACTION,
+        'elk.layered.nodePlacement.strategy': 'SIMPLE',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '24',
+        'elk.layered.spacing.edgeNodeBetweenLayers': '10',
+        'elk.layered.spacing.edgeEdgeBetweenLayers': '6',
+      } : {}),
+    };
+    return { id: 'root', children, edges, layoutOptions };
+  }
+
+  function readLayout(f, g, c) {
+    const shapes = new Map();
+    const routed = new Map();
+    const collect = (s) => { shapes.set(s.id, s); (s.edges || []).forEach((e) => routed.set(e.id, e)); (s.children || []).forEach(collect); };
+    collect(g);
+    const nodes = f.nodes.map((n) => { const s = shapes.get(`n:${n.id}`); return { ...n, x: s.x + s.width / 2, y: s.y + s.height / 2 }; });
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const boxes = f.groups.map((gr) => { const s = shapes.get(`g:${gr.id}`); return { ...gr, x: s.x, y: s.y, w: s.width, h: s.height }; });
+    const pointsOf = (id) => {
+      const sec = routed.get(id)?.sections?.[0];
+      return sec ? [sec.startPoint, ...(sec.bendPoints || []), sec.endPoint] : [];
+    };
+    const routes = f.edges.map((e, i) => {
+      let pts = [...pointsOf(`e${i}:a`), ...pointsOf(`e${i}`), ...pointsOf(`e${i}:b`)];
+      if (f.back.has(e)) pts = pts.reverse();
+      if (pts.length < 2) pts = [byId.get(e.source), byId.get(e.target)].map((n) => ({ x: n.x, y: n.y }));
+      const lab = routed.get(`e${i}`)?.labels?.[0];
+      return { e, pts, label: lab ? { x: lab.x + lab.width / 2, y: lab.y + lab.height / 2, w: lab.width, h: lab.height, lines: lab.lines } : null };
+    });
+    return { nodes, byId, boxes, routes, w: g.width, h: g.height, LR: c.dir === 'RIGHT' };
+  }
+
+  async function layoutFlow(d, stage) {
+    elk = elk || new ELK();
+    const font = `600 13px ${FONT()}`;
+    const nodes = d.nodes.map((n, i) => {
+      const lines = wrapText(n.label, 148, font, 3);
+      const tw = Math.max(...lines.map((l) => measure(l, font)), 40);
+      return { ...n, i, lines, w: clamp(tw + 34, 104, 200), h: 34 + lines.length * 16 };
+    });
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const edges = d.edges.filter((e) => byId.has(e.source) && byId.has(e.target) && e.source !== e.target);
+    const groups = (d.groups || []).filter((g) => nodes.some((n) => n.group === g.id));
+    const f = { nodes, byId, edges, groups, back: cycleEdges(nodes, edges) };
+    // Try several layouts and keep the one drawn largest on the stage, with a small bias to
+    // the direction the model chose and to a single flow over a split one.
+    const candidates = [{ dir: 'RIGHT' }, { dir: 'DOWN' }];
+    if (groups.length) candidates.push({ dir: 'DOWN', inner: 'RIGHT' }, { dir: 'RIGHT', inner: 'DOWN' });
+    if (!groups.length && nodes.length >= 6) {
+      candidates.push({ dir: 'RIGHT', wrap: true, options: { 'elk.layered.wrapping.strategy': 'MULTI_EDGE', 'elk.aspectRatio': String(stage.w / stage.h) } });
     }
-    const hasGroups = (d.groups || []).length > 0;
-    const GAP_CROSS = hasGroups ? 40 : 26;
-    const BAND_GAP = hasGroups ? 76 : 62;
-    // Candidate placements: left-to-right (optionally wrapped into bands) or top-to-bottom.
-    // Pick the one whose shape best fits the stage, with a small bias to the model's choice.
-    const placeLR = (bands) => {
-      const per = Math.ceil(layers.length / bands);
-      const P = new Map();
-      let yOff = 0;
-      let width = 0;
-      for (let b = 0; b < bands; b++) {
-        const Ls = layers.slice(b * per, (b + 1) * per);
-        if (!Ls.length) break;
-        const colH = Ls.map((L) => L.reduce((a, n) => a + n.h, 0) + GAP_CROSS * (L.length - 1));
-        const bandH = Math.max(...colH);
-        let x = 0;
-        Ls.forEach((L, li) => {
-          const colW = Math.max(...L.map((n) => n.w));
-          let y = yOff + (bandH - colH[li]) / 2;
-          L.forEach((n) => { P.set(n.id, { x: x + colW / 2, y: y + n.h / 2, band: b }); y += n.h + GAP_CROSS; });
-          x += colW + 84;
-        });
-        width = Math.max(width, x - 84);
-        yOff += bandH + BAND_GAP;
-      }
-      return { P, w: width, h: yOff - BAND_GAP, LR: true };
-    };
-    const placeTB = () => {
-      const P = new Map();
-      const rowW = layers.map((L) => L.reduce((a, n) => a + n.w, 0) + GAP_CROSS * (L.length - 1));
-      const maxW = Math.max(...rowW);
-      let y = 0;
-      layers.forEach((L, li) => {
-        const rowH = Math.max(...L.map((n) => n.h));
-        let x = (maxW - rowW[li]) / 2;
-        L.forEach((n) => { P.set(n.id, { x: x + n.w / 2, y: y + rowH / 2, band: 0 }); x += n.w + GAP_CROSS; });
-        y += rowH + 64;
-      });
-      return { P, w: maxW, h: y - 64, LR: false };
-    };
-    // Swimlanes: when the diagram has groups (e.g. encoder / decoder), each group gets
-    // its own lane across all layers, so group boxes can never overlap.
-    const groupIds = (d.groups || []).map((g) => g.id);
-    const laneOf = (n) => (n.group && groupIds.includes(n.group) ? n.group : '__none__');
-    const placeLanes = (LRdir) => {
-      const lanes = [];
-      const ordered = [...nodes].sort((x, y) => layer.get(x.id) - layer.get(y.id) || x.i - y.i);
-      ordered.forEach((n) => { const l = laneOf(n); if (!lanes.includes(l)) lanes.push(l); });
-      // compact ranks: each lane stacks its own nodes consecutively (like the encoder and
-      // decoder columns of an architecture figure) instead of inheriting global layers
-      const rank = new Map();
-      const seen = {};
-      ordered.forEach((n) => {
-        const l = laneOf(n);
-        const prevLayer = seen[l]?.layer;
-        const r = seen[l] ? (layer.get(n.id) === prevLayer ? seen[l].rank : seen[l].rank + 1) : 0;
-        seen[l] = { rank: r, layer: layer.get(n.id) };
-        rank.set(n.id, r);
-      });
-      // ungrouped nodes keep their global position relative to the grouped ones
-      ordered.filter((n) => laneOf(n) === '__none__').forEach((n) => {
-        const before = ordered.filter((m) => laneOf(m) !== '__none__' && layer.get(m.id) < layer.get(n.id));
-        rank.set(n.id, Math.max(rank.get(n.id), before.length ? Math.max(...before.map((m) => rank.get(m.id))) + 1 : 0));
-      });
-      const nRanks = Math.max(...nodes.map((n) => rank.get(n.id))) + 1;
-      const rows = Array.from({ length: nRanks }, (_, r) => nodes.filter((n) => rank.get(n.id) === r));
-      const cross = (n) => (LRdir ? n.h : n.w);
-      const along = (n) => (LRdir ? n.w : n.h);
-      const ext = Object.fromEntries(lanes.map((l) => [l, 0]));
-      rows.forEach((L) => lanes.forEach((l) => {
-        const ns = L.filter((n) => laneOf(n) === l);
-        ext[l] = Math.max(ext[l], ns.reduce((acc, n) => acc + cross(n), 0) + GAP_CROSS * Math.max(0, ns.length - 1));
-      }));
-      const LANE_GAP = 48;
-      const start = {};
-      let off = 0;
-      lanes.forEach((l) => { start[l] = off; off += ext[l] + LANE_GAP; });
-      const P = new Map();
-      const STEP = LRdir ? 84 : 56;
-      let main = 0;
-      rows.forEach((L) => {
-        if (!L.length) return;
-        const colMain = Math.max(...L.map(along));
-        lanes.forEach((l) => {
-          const ns = L.filter((n) => laneOf(n) === l);
-          const used = ns.reduce((acc, n) => acc + cross(n), 0) + GAP_CROSS * Math.max(0, ns.length - 1);
-          let c = start[l] + (ext[l] - used) / 2;
-          ns.forEach((n) => {
-            const cs = cross(n);
-            P.set(n.id, LRdir ? { x: main + colMain / 2, y: c + cs / 2, band: 0 } : { x: c + cs / 2, y: main + colMain / 2, band: 0 });
-            c += cs + GAP_CROSS;
-          });
-        });
-        main += colMain + STEP;
-      });
-      const mainTotal = main - STEP;
-      const crossTotal = off - LANE_GAP;
-      return LRdir ? { P, w: mainTotal, h: crossTotal, LR: true, lanes: true } : { P, w: crossTotal, h: mainTotal, LR: false, lanes: true };
-    };
-    const target = Math.log(aspect || 1.5);
-    const options = [placeLR(1), placeTB()];
-    if (layers.length >= 4) options.push(placeLR(2));
-    if (layers.length >= 7) options.push(placeLR(3));
-    if (groupIds.length && nodes.some((n) => n.group)) options.push(placeLanes(true), placeLanes(false));
+    const layouts = await Promise.all(candidates.map((c) => elk.layout(elkGraph(f, c)).then((g) => readLayout(f, g, c)).catch((err) => { console.warn('diagram layout failed', c, err); return null; })));
     const preferLR = d.direction !== 'TB';
-    const groupIntrusions = (o) => {
-      let bad = 0;
-      for (const g of d.groups || []) {
-        const mem = nodes.filter((n) => n.group === g.id);
-        if (!mem.length) continue;
-        const ps = mem.map((n) => ({ p: o.P.get(n.id), n }));
-        const x0 = Math.min(...ps.map(({ p, n }) => p.x - n.w / 2));
-        const x1 = Math.max(...ps.map(({ p, n }) => p.x + n.w / 2));
-        const y0 = Math.min(...ps.map(({ p, n }) => p.y - n.h / 2));
-        const y1 = Math.max(...ps.map(({ p, n }) => p.y + n.h / 2));
-        nodes.forEach((n) => {
-          if (n.group === g.id) return;
-          const p = o.P.get(n.id);
-          if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) bad += 1;
-        });
-      }
-      return bad;
-    };
-    const groupOverlaps = (o) => {
-      const boxes = (d.groups || []).map((g) => {
-        const mem = nodes.filter((n) => n.group === g.id);
-        if (!mem.length) return null;
-        const ps = mem.map((n) => ({ p: o.P.get(n.id), n }));
-        return {
-          x0: Math.min(...ps.map(({ p, n }) => p.x - n.w / 2)) - 14, x1: Math.max(...ps.map(({ p, n }) => p.x + n.w / 2)) + 14,
-          y0: Math.min(...ps.map(({ p, n }) => p.y - n.h / 2)) - 26, y1: Math.max(...ps.map(({ p, n }) => p.y + n.h / 2)) + 14,
-        };
-      }).filter(Boolean);
-      let bad = 0;
-      for (let i = 0; i < boxes.length; i++) {
-        for (let j = i + 1; j < boxes.length; j++) {
-          const A = boxes[i]; const B = boxes[j];
-          if (A.x0 < B.x1 && B.x0 < A.x1 && A.y0 < B.y1 && B.y0 < A.y1) bad += 1;
-        }
-      }
-      return bad;
-    };
-    const score = (o, i) => Math.abs(Math.log(Math.max(o.w, 1) / Math.max(o.h, 1)) - target)
-      + (o.LR !== preferLR ? 0.25 : 0) + (!o.lanes && i >= 2 ? 0.2 * (i - 1) : 0)
-      + 0.6 * groupIntrusions(o) + 0.8 * groupOverlaps(o) - (o.lanes ? 0.15 : 0);
-    let best = 0;
-    options.forEach((o, i) => { if (score(o, i) < score(options[best], best)) best = i; });
-    const chosen = options[best];
-    nodes.forEach((n) => { const p = chosen.P.get(n.id); n.x = p.x; n.y = p.y; n.band = p.band; });
-    return { nodes, byId, edges, back, LR: chosen.LR, layer };
+    const score = (L, c) => Math.min(stage.w / Math.max(L.w, 1), stage.h / Math.max(L.h, 1), 1.35)
+      * (L.LR === preferLR ? 1.08 : 1) * (c.inner || c.wrap ? 1 : 1.05);
+    let best = -1;
+    layouts.forEach((L, i) => { if (L && (best < 0 || score(L, candidates[i]) > score(layouts[best], candidates[best]))) best = i; });
+    if (best < 0) throw new Error('no diagram layout');
+    return layouts[best];
   }
 
-  function bezierMid(p0, p1, p2, p3) {
-    return { x: (p0.x + 3 * p1.x + 3 * p2.x + p3.x) / 8, y: (p0.y + 3 * p1.y + 3 * p2.y + p3.y) / 8 };
-  }
-
-  function edgeGeometry(a, b, LR, isBack) {
-    let p0, p1, p2, p3;
-    if (LR && !isBack && b.band > a.band) { // wrap to the next band: leave downwards, arrive from above
-      p0 = { x: a.x, y: a.y + a.h / 2 }; p3 = { x: b.x, y: b.y - b.h / 2 - 3 };
-      const dy = Math.max(30, (p3.y - p0.y) * 0.5);
-      p1 = { x: p0.x, y: p0.y + dy }; p2 = { x: p3.x, y: p3.y - dy };
-      return { d: `M${p0.x},${p0.y} C${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`, mid: bezierMid(p0, p1, p2, p3), ext: [p1, p2] };
+  // Orthogonal route as a path with rounded corners. The end is pulled back a little so the
+  // arrowhead's tip, not its base, touches the box.
+  function routePath(points, radius = 8) {
+    // drop repeated points (where the pieces of a split edge meet) and 1-2px jogs
+    const pts = [];
+    points.forEach((p) => { if (!pts.length || Math.hypot(p.x - pts[pts.length - 1].x, p.y - pts[pts.length - 1].y) > 2) pts.push(p); });
+    const n = pts.length;
+    if (n < 2) return '';
+    const a = pts[n - 2];
+    const b = pts[n - 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len > 6) pts[n - 1] = { x: b.x - ((b.x - a.x) / len) * 3, y: b.y - ((b.y - a.y) / len) * 3 };
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i = 1; i < n - 1; i++) {
+      const p = pts[i - 1];
+      const c = pts[i];
+      const q = pts[i + 1];
+      const l1 = Math.hypot(c.x - p.x, c.y - p.y);
+      const l2 = Math.hypot(q.x - c.x, q.y - c.y);
+      const r = Math.min(radius, l1 / 2, l2 / 2);
+      d += ` L${c.x - ((c.x - p.x) / l1) * r},${c.y - ((c.y - p.y) / l1) * r}`;
+      d += ` Q${c.x},${c.y} ${c.x + ((q.x - c.x) / l2) * r},${c.y + ((q.y - c.y) / l2) * r}`;
     }
-    const forward = LR ? b.band === a.band && b.x - b.w / 2 > a.x + a.w / 2 : b.y - b.h / 2 > a.y + a.h / 2;
-    if (!isBack && forward) {
-      if (LR) {
-        p0 = { x: a.x + a.w / 2, y: a.y }; p3 = { x: b.x - b.w / 2 - 3, y: b.y };
-        const dx = Math.max(28, (p3.x - p0.x) * 0.5);
-        p1 = { x: p0.x + dx, y: p0.y }; p2 = { x: p3.x - dx, y: p3.y };
-      } else {
-        p0 = { x: a.x, y: a.y + a.h / 2 }; p3 = { x: b.x, y: b.y - b.h / 2 - 3 };
-        const dy = Math.max(24, (p3.y - p0.y) * 0.5);
-        p1 = { x: p0.x, y: p0.y + dy }; p2 = { x: p3.x, y: p3.y - dy };
-      }
-    } else if (LR) { // loop under the nodes
-      p0 = { x: a.x, y: a.y + a.h / 2 }; p3 = { x: b.x, y: b.y + b.h / 2 + 3 };
-      const dy = 40 + Math.abs(p3.x - p0.x) * 0.12;
-      p1 = { x: p0.x, y: Math.max(p0.y, p3.y) + dy }; p2 = { x: p3.x, y: Math.max(p0.y, p3.y) + dy };
-    } else { // loop beside the nodes
-      p0 = { x: a.x + a.w / 2, y: a.y }; p3 = { x: b.x + b.w / 2 + 3, y: b.y };
-      const dx = 40 + Math.abs(p3.y - p0.y) * 0.12;
-      p1 = { x: Math.max(p0.x, p3.x) + dx, y: p0.y }; p2 = { x: Math.max(p0.x, p3.x) + dx, y: p3.y };
-    }
-    return { d: `M${p0.x},${p0.y} C${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`, mid: bezierMid(p0, p1, p2, p3), ext: [p1, p2] };
+    return `${d} L${pts[n - 1].x},${pts[n - 1].y}`;
   }
 
   function renderFlow(d, host) {
-    const hr = host.getBoundingClientRect();
-    const aspect = hr.width > 50 && hr.height > 50 ? (hr.width - 36) / (hr.height - 36) : 1.5;
-    const L = layoutFlow(d, aspect);
-    const font = FONT();
     const id = ++markerSeq;
     const mk = `pm-arrow-${id}`;
     const mkA = `pm-arrow-a-${id}`;
     const svg = s('svg', { class: 'diagram-svg diagram-enter', role: 'img', 'aria-label': `${d.title}. ${d.caption || ''}`, preserveAspectRatio: 'xMidYMid meet' });
+    host.append(svg); // laid out asynchronously: the svg is filled in once ELK is done
+    let focus = null;
+    let pending = [];
+    let hr = null;
+    // measured once the caller has filled the rest of the stage (the caption takes height)
+    Promise.resolve().then(() => {
+      hr = host.getBoundingClientRect();
+      return layoutFlow(d, hr.width > 50 && hr.height > 50 ? { w: hr.width - 36, h: hr.height - 36 } : { w: 900, h: 560 });
+    }).then((L) => {
+      if (!svg.isConnected) return; // the stage moved on while the layout ran
+      focus = drawFlow(d, svg, L, hr, mk, mkA);
+      focus(pending);
+    }).catch((err) => {
+      console.error('diagram failed', err);
+      if (svg.isConnected) svg.replaceWith(h('p', { class: 'chart-note' }, 'This diagram could not be drawn.'));
+    });
+    return { focus(ids) { if (focus) focus(ids); else pending = ids; } };
+  }
+
+  function drawFlow(d, svg, L, hr, mk, mkA) {
+    const font = FONT();
     svg.append(s('defs', {},
       s('marker', { id: mk, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, s('path', { d: 'M0,0 L10,5 L0,10 z', class: 'arrowhead' })),
       s('marker', { id: mkA, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' }, s('path', { d: 'M0,0 L10,5 L0,10 z', class: 'arrowhead-active' }))));
-    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
-    const grow = (x, y) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
-    L.nodes.forEach((n) => { grow(n.x - n.w / 2, n.y - n.h / 2); grow(n.x + n.w / 2, n.y + n.h / 2); });
 
     // groups (behind everything)
     const groupEls = new Map();
     const gGroups = s('g', {});
-    (d.groups || []).forEach((g) => {
-      const members = L.nodes.filter((n) => n.group === g.id);
-      if (!members.length) return;
-      const x0 = Math.min(...members.map((n) => n.x - n.w / 2)) - 14;
-      const y0 = Math.min(...members.map((n) => n.y - n.h / 2)) - 26;
-      const x1 = Math.max(...members.map((n) => n.x + n.w / 2)) + 14;
-      const y1 = Math.max(...members.map((n) => n.y + n.h / 2)) + 14;
-      grow(x0, y0); grow(x1, y1);
-      const el = s('g', { class: 'fgroup' }, s('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: 16 }), s('text', { x: x0 + 12, y: y0 + 16 }, g.label));
-      groupEls.set(g.id, { el, members: members.map((m) => m.id) });
+    L.boxes.forEach((g) => {
+      const el = s('g', { class: 'fgroup' }, s('rect', { x: g.x, y: g.y, width: g.w, height: g.h, rx: 16 }), s('text', { x: g.x + 12, y: g.y + 18 }, g.label));
+      groupEls.set(g.id, { el, members: L.nodes.filter((n) => n.group === g.id).map((n) => n.id) });
       gGroups.append(el);
     });
 
     // edges
     const gEdges = s('g', {});
     const edgeEls = [];
-    L.edges.forEach((e) => {
-      const a = L.byId.get(e.source);
-      const b = L.byId.get(e.target);
-      const geo = edgeGeometry(a, b, L.LR, L.back.has(e));
-      geo.ext.forEach((p) => grow(p.x, p.y));
-      const path = s('path', { d: geo.d, 'marker-end': `url(#${mk})` });
+    L.routes.forEach(({ e, pts, label }) => {
+      const path = s('path', { d: routePath(pts), 'marker-end': `url(#${mk})` });
       const el = s('g', { class: 'fedge' }, path);
-      if (e.label) {
-        const tw = measure(e.label, `11px ${font}`) + 10;
-        el.append(s('rect', { class: 'elabel-bg', x: geo.mid.x - tw / 2, y: geo.mid.y - 9, width: tw, height: 18, rx: 6 }),
-          s('text', { x: geo.mid.x, y: geo.mid.y + 4, 'text-anchor': 'middle' }, e.label));
+      if (e.label && label) {
+        const lines = label.lines || [e.label];
+        el.append(s('rect', { class: 'elabel-bg', x: label.x - label.w / 2, y: label.y - label.h / 2, width: label.w, height: label.h, rx: 6 }),
+          s('text', { 'text-anchor': 'middle' }, lines.map((line, k) => s('tspan', { x: label.x, y: label.y + 4 + (k - (lines.length - 1) / 2) * 14 }, line))));
       }
       edgeEls.push({ el, path, e });
       gEdges.append(el);
@@ -766,8 +709,9 @@
       const label = s('text', { class: 'flabel', 'text-anchor': 'middle' },
         n.lines.map((line, k) => s('tspan', { x: 0, y: top + 34 + k * 16 }, line)));
       const kindW = measure(n.kind.toUpperCase(), `700 9.5px ${font}`);
+      const delay = Math.round((L.LR ? n.x : n.y) * 0.4 + i * 15);
       const el = s('g', { class: 'fnode', transform: `translate(${n.x},${n.y})`, tabindex: 0, role: 'button', 'aria-label': `${n.label}${n.detail ? `: ${n.detail}` : ''}` },
-        s('g', { class: REDUCED ? '' : 'anim-in', style: `animation-delay:${(L.layer.get(n.id) * 90 + i * 15)}ms` },
+        s('g', { class: REDUCED ? '' : 'anim-in', style: `animation-delay:${delay}ms` },
           s('rect', { class: 'box', x: -n.w / 2, y: top, width: n.w, height: n.h, rx: 12 }),
           s('circle', { class: 'kind-dot', cx: -kindW / 2 - 7, cy: top + 13, r: 3.2, fill: slotColor(slot) }),
           s('text', { class: 'fkind', 'text-anchor': 'middle', x: 3, y: top + 16.5 }, n.kind.toUpperCase()),
@@ -780,8 +724,8 @@
       nodeEls.set(n.id, el);
       gNodes.append(el);
     });
-    const pad = 18;
-    let vb = { x: minX - pad, y: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad };
+    const pad = 8;
+    let vb = { x: -pad, y: -pad, w: L.w + 2 * pad, h: L.h + 2 * pad };
     if (hr.width > 50 && hr.height > 50) {
       const maxScale = 1.35;
       const sc = Math.min((hr.width - 36) / vb.w, (hr.height - 36) / vb.h);
@@ -793,22 +737,19 @@
     }
     svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
     svg.append(gGroups, gEdges, gNodes);
-    host.append(svg);
 
-    return {
-      focus(ids) {
-        const set = new Set(ids || []);
-        for (const [gid, g] of groupEls) if (set.has(gid)) g.members.forEach((m) => set.add(m));
-        svg.classList.toggle('has-focus', set.size > 0);
-        for (const [nid, el] of nodeEls) el.classList.toggle('is-focus', set.has(nid));
-        for (const [gid, g] of groupEls) g.el.classList.toggle('is-focus', set.has(gid));
-        const single = set.size === 1;
-        edgeEls.forEach(({ el, path, e }) => {
-          const on = (set.has(e.source) && set.has(e.target)) || (single && (set.has(e.source) || set.has(e.target)));
-          el.classList.toggle('is-active', on);
-          path.setAttribute('marker-end', `url(#${on ? mkA : mk})`);
-        });
-      },
+    return (ids) => {
+      const set = new Set(ids || []);
+      for (const [gid, g] of groupEls) if (set.has(gid)) g.members.forEach((m) => set.add(m));
+      svg.classList.toggle('has-focus', set.size > 0);
+      for (const [nid, el] of nodeEls) el.classList.toggle('is-focus', set.has(nid));
+      for (const [gid, g] of groupEls) g.el.classList.toggle('is-focus', set.has(gid));
+      const single = set.size === 1;
+      edgeEls.forEach(({ el, path, e }) => {
+        const on = (set.has(e.source) && set.has(e.target)) || (single && (set.has(e.source) || set.has(e.target)));
+        el.classList.toggle('is-active', on);
+        path.setAttribute('marker-end', `url(#${on ? mkA : mk})`);
+      });
     };
   }
 
@@ -2012,63 +1953,35 @@
     ui.center.append(ui.graphView);
   }
 
-  function layoutGraph() {
-    const N = NODES.length;
-    const deg = Object.fromEntries(NODES.map((n) => [n.id, 0]));
-    EDGES.forEach((e) => { deg[e.source]++; deg[e.target]++; });
-    const radius = (n) => (n.id === DATA.graph.center ? 24 : 8 + Math.min(12, Math.sqrt(deg[n.id] * 2 + (n.mentions || 1)) * 2.4));
-    const types = Object.keys(TYPE_SLOT);
-    const others = NODES.filter((n) => n.id !== DATA.graph.center)
-      .sort((a, b) => types.indexOf(a.type) - types.indexOf(b.type) || a.label.localeCompare(b.label));
-    const P = {};
-    P[DATA.graph.center] = { x: 0, y: 0 };
-    others.forEach((n, i) => {
-      const a = (i / Math.max(1, others.length)) * Math.PI * 2;
-      const R = 200 + (i % 3) * 45;
-      P[n.id] = { x: Math.cos(a) * R, y: Math.sin(a) * R };
-    });
-    const ids = NODES.map((n) => n.id);
-    const r = Object.fromEntries(NODES.map((n) => [n.id, radius(n)]));
-    const k = Math.sqrt((1000 * 760) / Math.max(N, 1)) * 0.85;
-    const iters = 420;
-    for (let it = 0; it < iters; it++) {
-      const temp = 70 * (1 - it / iters) + 0.5;
-      const disp = Object.fromEntries(ids.map((id) => [id, { x: 0, y: 0 }]));
-      for (let i = 0; i < N; i++) {
-        for (let j = i + 1; j < N; j++) {
-          const a = ids[i];
-          const b = ids[j];
-          let dx = P[a].x - P[b].x;
-          let dy = P[a].y - P[b].y;
-          let d = Math.hypot(dx, dy);
-          if (d < 0.01) { dx = 0.1 * (i - j); dy = 0.1; d = Math.hypot(dx, dy); }
-          let f = (k * k) / d;
-          const minD = r[a] + r[b] + 34;
-          if (d < minD) f += (minD - d) * 3;
-          disp[a].x += (dx / d) * f; disp[a].y += (dy / d) * f;
-          disp[b].x -= (dx / d) * f; disp[b].y -= (dy / d) * f;
-        }
-      }
-      EDGES.forEach((e) => {
-        const dx = P[e.source].x - P[e.target].x;
-        const dy = P[e.source].y - P[e.target].y;
-        const d = Math.max(0.01, Math.hypot(dx, dy));
-        const f = ((d * d) / k) * 0.9;
-        disp[e.source].x -= (dx / d) * f; disp[e.source].y -= (dy / d) * f;
-        disp[e.target].x += (dx / d) * f; disp[e.target].y += (dy / d) * f;
-      });
-      ids.forEach((id) => {
-        if (id === DATA.graph.center) return;
-        const g = deg[id] ? 0.015 : 0.05;
-        disp[id].x -= P[id].x * g * k * 0.1;
-        disp[id].y -= P[id].y * g * k * 0.1;
-        const len = Math.hypot(disp[id].x, disp[id].y) || 1;
-        const mv = Math.min(len, temp);
-        P[id].x += (disp[id].x / len) * mv;
-        P[id].y += (disp[id].y / len) * mv * 0.85; // slightly wider than tall
-      });
-    }
-    return { P, r, deg };
+  // The graph is drawn by Cytoscape.js with the fcose force-directed layout (both inlined
+  // into the page). Cytoscape paints on a canvas, so its colors come from the CSS tokens.
+  const cssToken = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const slotToken = (slot) => cssToken(slot ? `--series-${slot}` : '--text-muted');
+
+  function graphStyle() {
+    const surface = cssToken('--surface-1');
+    const accent = cssToken('--accent');
+    const line = cssToken('--border-strong');
+    const label = { 'font-family': FONT(), color: cssToken('--text-primary'), 'text-outline-color': surface, 'text-outline-width': 3, 'min-zoomed-font-size': 7 };
+    return [
+      { selector: 'node', style: {
+        ...label, 'background-color': 'data(color)', width: 'data(size)', height: 'data(size)', label: 'data(short)',
+        'font-size': 12, 'font-weight': 550, 'text-valign': 'bottom', 'text-margin-y': 5,
+        'border-width': 2.5, 'border-color': surface, 'outline-color': accent, 'outline-width': 0, 'outline-offset': 3,
+      } },
+      { selector: 'node.center', style: { 'border-color': accent, 'border-width': 3.5, 'font-size': 14, 'font-weight': 750 } },
+      { selector: 'node.in-section', style: { 'outline-width': 2 } },
+      { selector: 'node.sel', style: { 'border-color': cssToken('--text-primary'), 'border-width': 3 } },
+      { selector: 'edge', style: {
+        width: 1.3, 'line-color': line, 'target-arrow-color': line, 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8,
+        'curve-style': 'bezier',
+      } },
+      { selector: 'edge.hl', style: { width: 2, 'line-color': accent, 'target-arrow-color': accent } },
+      { selector: 'edge.show-label, edge.hover', style: { ...label, label: 'data(rel)', 'font-size': 10.5, color: cssToken('--text-muted'), 'text-rotation': 'autorotate' } },
+      { selector: 'node.faded', style: { opacity: 0.18 } },
+      { selector: 'edge.faded', style: { opacity: 0.12 } },
+      { selector: '.hidden', style: { display: 'none' } },
+    ];
   }
 
   function buildGraph() {
@@ -2076,51 +1989,75 @@
     const host = h('div', { class: 'graph-wrap' });
     ui.graphStage.append(host);
     graph.host = host;
-    if (!NODES.length) {
-      host.append(h('div', { class: 'stage-body' }, h('p', { class: 'chart-note' }, 'No knowledge graph was extracted for this paper.')));
+    if (!NODES.length || typeof cytoscape === 'undefined') {
+      const note = NODES.length ? 'The graph library is missing from this page: re-render it with `papermap render`.' : 'No knowledge graph was extracted for this paper.';
+      host.append(h('div', { class: 'stage-body' }, h('p', { class: 'chart-note' }, note)));
       return;
     }
-    const { P, r, deg } = layoutGraph();
-    graph.P = P;
-    graph.r = r;
+    if (typeof cytoscapeFcose !== 'undefined') cytoscape.use(cytoscapeFcose);
+    const deg = Object.fromEntries(NODES.map((n) => [n.id, 0]));
+    const edges = EDGES.filter((e) => NODE_BY_ID[e.source] && NODE_BY_ID[e.target]);
+    edges.forEach((e) => { deg[e.source]++; deg[e.target]++; });
     graph.deg = deg;
-    const svg = s('svg', { role: 'img', 'aria-label': 'Knowledge graph of the paper and related work' });
-    const vp = s('g', {});
-    svg.append(s('defs', {}, s('marker', { id: 'kg-arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto' }, s('path', { d: 'M0,0 L10,5 L0,10 z', class: 'arrowhead' }))), vp);
-    const gE = s('g', {});
-    const gN = s('g', {});
-    vp.append(gE, gN);
-    graph.edgeEls = EDGES.map((e) => {
-      const line = s('line', { 'marker-end': 'url(#kg-arrow)' });
-      const text = s('text', { 'text-anchor': 'middle' }, REL_LABEL(e.relation));
-      const g = s('g', { class: 'gedge' }, line, text);
-      g.append(s('title', {}, `${NODE_BY_ID[e.source].label} — ${REL_LABEL(e.relation)} → ${NODE_BY_ID[e.target].label}${e.description ? `: ${e.description}` : ''}`));
-      gE.append(g);
-      return { g, line, text, e };
+    graph.edges = new Map(edges.map((e, i) => [`edge:${i}`, e]));
+    const radius = (n) => (n.id === DATA.graph.center ? 24 : 8 + Math.min(12, Math.sqrt(deg[n.id] * 2 + (n.mentions || 1)) * 2.4));
+    const canvas = h('div', { class: 'graph-canvas', role: 'img', 'aria-label': 'Knowledge graph of the paper and related work' });
+    host.append(canvas);
+    const cy = cytoscape({
+      container: canvas,
+      style: graphStyle(),
+      minZoom: 0.15,
+      maxZoom: 4,
+      boxSelectionEnabled: false,
+      elements: [
+        ...NODES.map((n) => ({
+          data: { id: n.id, short: n.label.length > 28 ? `${n.label.slice(0, 26)}…` : n.label, color: slotToken(TYPE_SLOT[n.type] ?? 0), size: 2 * radius(n) },
+          classes: n.id === DATA.graph.center ? 'center' : '',
+        })),
+        ...[...graph.edges].map(([id, e]) => ({ data: { id, source: e.source, target: e.target, rel: REL_LABEL(e.relation) } })),
+      ],
     });
-    graph.nodeEls = new Map();
-    NODES.forEach((n) => {
-      const slot = TYPE_SLOT[n.type] ?? 0;
-      const lbl = n.label.length > 28 ? `${n.label.slice(0, 26)}…` : n.label;
-      const g = s('g', { class: `gnode${n.id === DATA.graph.center ? ' center' : ''}`, tabindex: 0, role: 'button', 'aria-label': `${n.label} (${TYPE_LABEL[n.type] || n.type})` },
-        s('circle', { class: 'ring', r: r[n.id] + 5 }),
-        s('circle', { r: r[n.id], fill: slotColor(slot) }),
-        s('text', { y: r[n.id] + 15, 'text-anchor': 'middle' }, lbl));
-      g.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); selectNode(n.id); } });
-      graph.nodeEls.set(n.id, g);
-      gN.append(g);
+    graph.cy = cy;
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', restyleGraph);
+    cy.on('tap', 'node', (ev) => selectNode(ev.target.id()));
+    cy.on('tap', (ev) => { if (ev.target === cy) selectNode(null); });
+    cy.on('mouseover', 'node', () => { canvas.style.cursor = 'pointer'; });
+    cy.on('mouseout', 'node', () => { canvas.style.cursor = ''; });
+    cy.on('mouseover', 'edge', (ev) => {
+      ev.target.addClass('hover');
+      const e = graph.edges.get(ev.target.id());
+      showTooltip(ev.originalEvent, `${esc(NODE_BY_ID[e.source].label)} — ${esc(REL_LABEL(e.relation))} → ${esc(NODE_BY_ID[e.target].label)}${e.description ? `<br>${esc(e.description)}` : ''}`);
     });
-    host.append(svg);
-    graph.svg = svg;
-    positionGraph();
-    fitGraph();
-    enableGraphInteractions(svg);
+    cy.on('mousemove', 'edge', (ev) => moveTooltip(ev.originalEvent));
+    cy.on('mouseout', 'edge', (ev) => { ev.target.removeClass('hover'); hideTooltip(); });
+    cy.layout({
+      name: typeof cytoscapeFcose !== 'undefined' ? 'fcose' : 'cose',
+      quality: 'proof',
+      randomize: true,
+      samplingType: false, // greedy spectral sampling: the same graph gets the same layout every time
+      animate: false,
+      nodeDimensionsIncludeLabels: true,
+      // longer edges around hubs give their neighbors room
+      idealEdgeLength: (edge) => 60 + 10 * Math.sqrt(deg[edge.data('source')] + deg[edge.data('target')]),
+      nodeRepulsion: () => 22000,
+      nodeSeparation: 90,
+      gravity: 0.25,
+      numIter: 2500,
+      packComponents: true,
+      padding: 40,
+    }).run();
+    requestAnimationFrame(() => { cy.resize(); fitGraph(); });
 
     // toolbar: search + type legend + fit
     const types = [...new Set(NODES.map((n) => n.type))].sort((a, b) => Object.keys(TYPE_SLOT).indexOf(a) - Object.keys(TYPE_SLOT).indexOf(b));
     graph.hidden = new Set();
-    const search = h('input', { class: 'graph-search', type: 'search', placeholder: 'Find a concept…', 'aria-label': 'Find a node' });
+    const search = h('input', { class: 'graph-search', type: 'search', placeholder: 'Find a concept…', 'aria-label': 'Find a node (Enter selects the first match)' });
     search.addEventListener('input', () => highlightSearch(search.value));
+    search.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      const hit = searchHits(search.value)[0];
+      if (hit) { search.value = ''; selectNode(hit); cy.animate({ center: { eles: cy.getElementById(hit) } }, { duration: 250 }); }
+    });
     const chips = types.map((t) => {
       const count = NODES.filter((n) => n.type === t).length;
       const b = h('button', { class: 'legend-chip', 'aria-pressed': 'true', title: 'Show / hide' }, h('i', { style: `background:${slotColor(TYPE_SLOT[t] ?? 0)}` }), `${TYPE_LABEL[t] || t} ${count}`);
@@ -2135,143 +2072,63 @@
     fit.firstChild.style.width = '14px';
     fit.firstChild.style.height = '14px';
     host.append(h('div', { class: 'graph-toolbar' }, search, chips, fit),
-      h('div', { class: 'graph-hint' }, 'Ringed nodes appear in the section you are on · drag to pan · scroll to zoom · click a node'));
-  }
-
-  function positionGraph() {
-    const { P, r } = graph;
-    graph.nodeEls.forEach((g, id) => g.setAttribute('transform', `translate(${P[id].x},${P[id].y})`));
-    graph.edgeEls.forEach(({ line, text, e }) => {
-      const a = P[e.source];
-      const b = P[e.target];
-      const d = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
-      const ux = (b.x - a.x) / d;
-      const uy = (b.y - a.y) / d;
-      const x1 = a.x + ux * r[e.source];
-      const y1 = a.y + uy * r[e.source];
-      const x2 = b.x - ux * (r[e.target] + 3);
-      const y2 = b.y - uy * (r[e.target] + 3);
-      line.setAttribute('x1', x1); line.setAttribute('y1', y1); line.setAttribute('x2', x2); line.setAttribute('y2', y2);
-      text.setAttribute('x', (x1 + x2) / 2); text.setAttribute('y', (y1 + y2) / 2 - 4);
-    });
+      h('div', { class: 'graph-hint' }, 'Ringed nodes appear in the section you are on · drag to pan or move a node · scroll to zoom · click a node'));
   }
 
   function fitGraph() {
-    const { P, r } = graph;
-    if (!P) return;
-    let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
-    NODES.forEach((n) => {
-      if (graph.hidden?.has(n.type)) return;
-      const p = P[n.id];
-      const lw = Math.min(28, n.label.length) * 3.6;
-      minX = Math.min(minX, p.x - Math.max(r[n.id], lw)); maxX = Math.max(maxX, p.x + Math.max(r[n.id], lw));
-      minY = Math.min(minY, p.y - r[n.id]); maxY = Math.max(maxY, p.y + r[n.id] + 22);
-    });
-    const pad = 40;
-    graph.vb = { x: minX - pad, y: minY - pad - 40, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad + 40 };
-    applyViewBox();
-  }
-  function applyViewBox() {
-    const { x, y, w, h: hh } = graph.vb;
-    graph.svg.setAttribute('viewBox', `${x} ${y} ${w} ${hh}`);
-    // keep labels readable at any zoom: font size in screen pixels, not graph units
-    const rect = graph.svg.getBoundingClientRect();
-    if (rect.width > 0) {
-      const scale = Math.max(w / rect.width, hh / rect.height);
-      graph.svg.style.setProperty('--kg-font', `${clamp(12 * scale, 6, 60)}px`);
-      graph.svg.style.setProperty('--kg-font-center', `${clamp(14 * scale, 7, 70)}px`);
-    }
+    const { cy } = graph;
+    if (!cy) return;
+    cy.animate({ fit: { eles: cy.elements(':visible'), padding: 48 } }, { duration: 250 });
   }
 
-  function enableGraphInteractions(svg) {
-    const toSvg = (cx, cy) => {
-      const rect = svg.getBoundingClientRect();
-      const { vb } = graph;
-      const scale = Math.max(vb.w / rect.width, vb.h / rect.height);
-      const ox = vb.x - (rect.width * scale - vb.w) / 2;
-      const oy = vb.y - (rect.height * scale - vb.h) / 2;
-      return { x: ox + (cx - rect.left) * scale, y: oy + (cy - rect.top) * scale, scale };
-    };
-    svg.addEventListener('wheel', (ev) => {
-      ev.preventDefault();
-      const p = toSvg(ev.clientX, ev.clientY);
-      const f = ev.deltaY > 0 ? 1.12 : 1 / 1.12;
-      const { vb } = graph;
-      const nw = clamp(vb.w * f, 120, 8000);
-      const ratio = nw / vb.w;
-      graph.vb = { x: p.x - (p.x - vb.x) * ratio, y: p.y - (p.y - vb.y) * ratio, w: nw, h: vb.h * ratio };
-      applyViewBox();
-    }, { passive: false });
-    let drag = null;
-    svg.addEventListener('pointerdown', (ev) => {
-      const nodeEl = ev.target.closest('.gnode');
-      const id = nodeEl ? [...graph.nodeEls].find(([, g]) => g === nodeEl)?.[0] : null;
-      const p = toSvg(ev.clientX, ev.clientY);
-      drag = { id, start: { x: ev.clientX, y: ev.clientY }, p, vb: { ...graph.vb }, moved: false };
-      svg.setPointerCapture(ev.pointerId);
-      svg.classList.add('dragging');
-    });
-    svg.addEventListener('pointermove', (ev) => {
-      if (!drag) return;
-      const dx = ev.clientX - drag.start.x;
-      const dy = ev.clientY - drag.start.y;
-      if (Math.hypot(dx, dy) > 4) drag.moved = true;
-      if (!drag.moved) return;
-      if (drag.id) {
-        const p = toSvg(ev.clientX, ev.clientY);
-        graph.P[drag.id] = { x: p.x, y: p.y };
-        positionGraph();
-      } else {
-        const rect = svg.getBoundingClientRect();
-        const scale = Math.max(drag.vb.w / rect.width, drag.vb.h / rect.height);
-        graph.vb = { ...drag.vb, x: drag.vb.x - dx * scale, y: drag.vb.y - dy * scale };
-        applyViewBox();
-      }
-    });
-    const end = () => {
-      if (!drag) return;
-      if (!drag.moved) { if (drag.id) selectNode(drag.id); else selectNode(null); }
-      drag = null;
-      svg.classList.remove('dragging');
-    };
-    svg.addEventListener('pointerup', end);
-    svg.addEventListener('pointercancel', end);
+  // Cytoscape bakes colors in: re-read the CSS tokens when the theme changes.
+  function restyleGraph() {
+    const { cy } = graph;
+    if (!cy) return;
+    cy.batch(() => cy.nodes().forEach((n) => n.data('color', slotToken(TYPE_SLOT[NODE_BY_ID[n.id()].type] ?? 0))));
+    cy.style(graphStyle());
   }
 
   function applyHidden() {
-    graph.nodeEls.forEach((g, id) => g.classList.toggle('hidden', graph.hidden.has(NODE_BY_ID[id].type)));
-    graph.edgeEls.forEach(({ g, e }) => g.classList.toggle('hidden', graph.hidden.has(NODE_BY_ID[e.source].type) || graph.hidden.has(NODE_BY_ID[e.target].type)));
+    const { cy, hidden } = graph;
+    cy.batch(() => {
+      cy.nodes().forEach((n) => n.toggleClass('hidden', hidden.has(NODE_BY_ID[n.id()].type)));
+      cy.edges().forEach((e) => e.toggleClass('hidden', e.source().hasClass('hidden') || e.target().hasClass('hidden')));
+    });
+  }
+
+  function searchHits(q) {
+    const term = q.trim().toLowerCase();
+    if (!term) return [];
+    return NODES.filter((n) => !graph.hidden.has(n.type) && [n.label, ...(n.aliases || [])].some((x) => x.toLowerCase().includes(term))).map((n) => n.id);
   }
 
   function highlightSearch(q) {
-    const term = q.trim().toLowerCase();
-    if (!term) { applyGraphHighlight(); return; }
-    const hits = new Set(NODES.filter((n) => [n.label, ...(n.aliases || [])].some((x) => x.toLowerCase().includes(term))).map((n) => n.id));
-    graph.host.classList.toggle('dim', true);
-    graph.nodeEls.forEach((g, id) => g.classList.toggle('hl', hits.has(id)));
-    graph.edgeEls.forEach(({ g }) => g.classList.remove('hl'));
+    if (!q.trim()) { applyGraphHighlight(); return; }
+    const hits = new Set(searchHits(q));
+    const { cy } = graph;
+    cy.batch(() => {
+      cy.elements().removeClass('hl sel show-label');
+      cy.edges().addClass('faded');
+      cy.nodes().forEach((n) => n.toggleClass('faded', !hits.has(n.id())));
+    });
   }
 
   function applyGraphHighlight() {
-    if (!graph.built || !graph.nodeEls) return;
+    const { cy } = graph;
+    if (!graph.built || !cy) return;
     const secId = SECTIONS[state.sIdx].id;
-    graph.nodeEls.forEach((g, id) => g.classList.toggle('in-section', (NODE_BY_ID[id].sections || []).includes(secId)));
-    const sel = state.selectedNode;
-    if (!sel) {
-      graph.host.classList.remove('dim');
-      graph.nodeEls.forEach((g) => g.classList.remove('hl', 'sel'));
-      graph.edgeEls.forEach(({ g }) => g.classList.remove('hl'));
-      return;
-    }
-    const nb = new Set([sel]);
-    graph.edgeEls.forEach(({ g, e }) => {
-      const on = e.source === sel || e.target === sel;
-      g.classList.toggle('hl', on);
-      if (on) { nb.add(e.source); nb.add(e.target); }
+    const sel = state.selectedNode && cy.getElementById(state.selectedNode);
+    cy.batch(() => {
+      cy.nodes().forEach((n) => n.toggleClass('in-section', (NODE_BY_ID[n.id()].sections || []).includes(secId)));
+      cy.elements().removeClass('hl sel faded show-label');
+      if (!sel || !sel.length) return;
+      const near = sel.closedNeighborhood();
+      cy.elements().not(near).addClass('faded');
+      sel.connectedEdges().addClass('hl');
+      sel.addClass('sel');
+      if (near.nodes().length <= 9) sel.connectedEdges().addClass('show-label');
     });
-    graph.host.classList.add('dim');
-    graph.host.classList.toggle('many', nb.size > 9);
-    graph.nodeEls.forEach((g, id) => { g.classList.toggle('hl', nb.has(id)); g.classList.toggle('sel', id === sel); });
   }
 
   function selectNode(id) {
@@ -2414,6 +2271,7 @@
     else document.documentElement.removeAttribute('data-theme');
     const dark = theme ? theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
     ui.themeBtn.replaceChildren(icon(dark ? 'sun' : 'moon'));
+    restyleGraph();
   }
   function toggleTheme() {
     const cur = document.documentElement.getAttribute('data-theme');
@@ -2543,7 +2401,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (state.mode !== 'read') return;
-      if (state.view === 'graph') { if (graph.svg) applyViewBox(); return; }
+      if (state.view === 'graph') { graph.cy?.resize(); return; }
       renderSection();
       renderBeat(false);
     }, 250);
